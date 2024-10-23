@@ -51,7 +51,7 @@ simple-api-gateway gen <config_file_path>
 docker run -d --name simple-api-gateway -p 8080:8080 -v /etc/simple_api_gateway/config.toml:/config.toml nerdneils/simple_api_gateway:latest
 ```
 
-```toml
+```yaml
 # docker-compose.yml
 version: "3.8"
 services:
