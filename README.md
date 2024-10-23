@@ -1,6 +1,3 @@
-好的，我来为您编写一个 README.md 文件。这个 README 将基于您提供的代码和项目结构。
-
-```markdown
 # Simple API Gateway
 
 Simple API Gateway 是一个轻量级的 API 网关工具，用于代理请求到多个后端服务。
@@ -20,31 +17,57 @@ Simple API Gateway 是一个轻量级的 API 网关工具，用于代理请求�
 go get github.com/nerdneilsfield/simple_api_gateway
 ```
 
-## 使用方法
+## 使用方法 / Usage
 
-Simple API Gateway 提供了以下命令：
+Simple API Gateway 提供了以下命令 / Commands：
 
-1. 启动服务：
+1. 启动服务 / Start the service:
 
 ```bash
 simple-api-gateway serve <config_file_path>
 ```
 
-2. 检查配置文件：
+2. 检查配置文件 / Check the config file:
 
 ```bash
 simple-api-gateway check <config_file_path>
 ```
 
-3. 查看版本信息：
+3. 查看版本信息 / View the version information:
 
 ```bash
 simple-api-gateway version
 ```
 
-## 配置
+4. 生成配置文件 / Generate the config file:
 
-配置文件使用 TOML 格式。
+```bash
+simple-api-gateway gen <config_file_path>
+```
+
+## 使用 Docker 运行 / Use Docker to run
+
+```bash
+docker run -d --name simple-api-gateway -p 8080:8080 -v /etc/simple_api_gateway/config.toml:/config.toml nerdneils/simple_api_gateway:latest
+```
+
+```toml
+# docker-compose.yml
+version: "3.8"
+services:
+  simple-api-gateway:
+    image: nerdneils/simple_api_gateway:latest
+    ports:
+      - 8080:8080
+    volumes:
+      - /etc/simple_api_gateway/config.toml:/config.toml
+    restart: always
+```
+
+## 配置 / Configuration
+
+配置文件使用 TOML 格式。配置文件示例：
+Configuration example (Using .toml format):
 
 ```toml
 # example_test.toml
@@ -106,3 +129,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ```
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=nerdneilsfield/simple_api_gateway&type=Date)](https://star-history.com/#nerdneilsfield/simple_api_gateway&Date)
