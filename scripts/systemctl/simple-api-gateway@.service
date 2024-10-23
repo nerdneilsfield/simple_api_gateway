@@ -1,0 +1,13 @@
+[Unit]
+Description=Simple API Gateway Service for %I
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/simple_api_gateway cron /etc/simple_api_gateway/%i.toml
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,18 @@
+#!/sbin/openrc-run
+
+name="simple_api_gateway"
+description="Simple API Gateway Service"
+command="/usr/bin/simple_api_gateway"
+command_args="cron /etc/simple_api_gateway/${RC_SVCNAME#simple_api_gateway.}.toml"
+pidfile="/run/${RC_SVCNAME}.pid"
+command_background="yes"
+
+depend() {
+    need net
+    after firewall
+}
+
+start_pre() {
+    ebegin "Waiting for network to be fully online"
+    eend $?
+}

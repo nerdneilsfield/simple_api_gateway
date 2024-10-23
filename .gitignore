@@ -21,5 +21,17 @@
 go.work
 go.work.sum
 
+# Dist
+dist/
+
+# Editor
+.idea/
+.vscode/
+.nvim/
+
 # env file
 .env
+
+./simple-api-gateway
+./example_test.toml
+*.log

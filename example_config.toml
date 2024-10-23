@@ -1,0 +1,13 @@
+port = 8080
+host = "0.0.0.0"
+log_file_path = "/var/log/simple-api-gateway.log"
+
+[[route]]
+path = "/hello"
+backend = "http://localhost:8080"
+ua_client = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+
+[[route]]
+path = "/hello2"
+backend = "http://localhost:8081"
+ua_client = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
