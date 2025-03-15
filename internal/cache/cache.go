@@ -74,21 +74,26 @@ func (c *MemoryCache) cleanExpired() {
 // Get retrieves a value from the cache by key
 // 通过键从缓存中获取值
 func (c *MemoryCache) Get(key string) ([]byte, error) {
+	logger.Debug("Memory cache: attempting to get item", zap.String("key", key))
 	value, ok := c.cache.Load(key)
 	if !ok {
+		logger.Debug("Memory cache: key not found", zap.String("key", key))
 		return nil, errors.New("key not found")
 	}
 
 	item, ok := value.(memoryCacheItem)
 	if !ok {
+		logger.Debug("Memory cache: invalid cache item", zap.String("key", key))
 		return nil, errors.New("invalid cache item")
 	}
 
 	if !item.expiration.IsZero() && item.expiration.Before(time.Now()) {
+		logger.Debug("Memory cache: key expired", zap.String("key", key), zap.Time("expiration", item.expiration))
 		c.cache.Delete(key)
 		return nil, errors.New("key expired")
 	}
 
+	logger.Debug("Memory cache: item retrieved successfully", zap.String("key", key), zap.Int("size", len(item.value)))
 	return item.value, nil
 }
 
@@ -99,6 +104,12 @@ func (c *MemoryCache) Set(key string, value []byte, ttl int) error {
 	if ttl > 0 {
 		expiration = time.Now().Add(time.Duration(ttl) * time.Second)
 	}
+
+	logger.Debug("Memory cache: storing item",
+		zap.String("key", key),
+		zap.Int("size", len(value)),
+		zap.Int("ttl", ttl),
+		zap.Time("expiration", expiration))
 
 	c.cache.Store(key, memoryCacheItem{
 		value:      value,
@@ -111,6 +122,7 @@ func (c *MemoryCache) Set(key string, value []byte, ttl int) error {
 // Delete removes a value from the cache by key
 // 通过键从缓存中删除值
 func (c *MemoryCache) Delete(key string) error {
+	logger.Debug("Memory cache: deleting item", zap.String("key", key))
 	c.cache.Delete(key)
 	return nil
 }
@@ -162,14 +174,19 @@ func NewRedisCache(config config.Cache) (*RedisCache, error) {
 // 通过键从Redis获取值
 func (c *RedisCache) Get(key string) ([]byte, error) {
 	fullKey := c.prefix + key
+	logger.Debug("Redis cache: attempting to get item", zap.String("key", fullKey))
+
 	value, err := c.client.Get(c.ctx, fullKey).Bytes()
 	if err != nil {
 		if err == redis.Nil {
+			logger.Debug("Redis cache: key not found", zap.String("key", fullKey))
 			return nil, errors.New("key not found")
 		}
+		logger.Debug("Redis cache: error getting item", zap.String("key", fullKey), zap.Error(err))
 		return nil, err
 	}
 
+	logger.Debug("Redis cache: item retrieved successfully", zap.String("key", fullKey), zap.Int("size", len(value)))
 	return value, nil
 }
 
@@ -182,14 +199,30 @@ func (c *RedisCache) Set(key string, value []byte, ttl int) error {
 		expiration = time.Duration(ttl) * time.Second
 	}
 
-	return c.client.Set(c.ctx, fullKey, value, expiration).Err()
+	logger.Debug("Redis cache: storing item",
+		zap.String("key", fullKey),
+		zap.Int("size", len(value)),
+		zap.Int("ttl", ttl),
+		zap.Duration("expiration", expiration))
+
+	err := c.client.Set(c.ctx, fullKey, value, expiration).Err()
+	if err != nil {
+		logger.Debug("Redis cache: error setting item", zap.String("key", fullKey), zap.Error(err))
+	}
+	return err
 }
 
 // Delete removes a value from Redis by key
 // 通过键从Redis中删除值
 func (c *RedisCache) Delete(key string) error {
 	fullKey := c.prefix + key
-	return c.client.Del(c.ctx, fullKey).Err()
+	logger.Debug("Redis cache: deleting item", zap.String("key", fullKey))
+
+	err := c.client.Del(c.ctx, fullKey).Err()
+	if err != nil {
+		logger.Debug("Redis cache: error deleting item", zap.String("key", fullKey), zap.Error(err))
+	}
+	return err
 }
 
 // Close closes the Redis client connection
@@ -238,19 +271,36 @@ func NewCacheManager(config config.Cache) (*CacheManager, error) {
 // Get retrieves a value from the cache by key
 // 通过键从缓存获取值
 func (m *CacheManager) Get(key string) ([]byte, error) {
-	return m.cache.Get(key)
+	logger.Debug("Cache manager: get operation", zap.String("key", key))
+	value, err := m.cache.Get(key)
+	if err != nil {
+		logger.Debug("Cache manager: get operation failed", zap.String("key", key), zap.Error(err))
+		return nil, err
+	}
+	logger.Debug("Cache manager: get operation succeeded", zap.String("key", key), zap.Int("size", len(value)))
+	return value, nil
 }
 
 // Set stores a value in the cache with the given key and TTL
 // 将值存储在缓存中，使用给定的键和TTL
 func (m *CacheManager) Set(key string, value []byte, ttl int) error {
-	return m.cache.Set(key, value, ttl)
+	logger.Debug("Cache manager: set operation", zap.String("key", key), zap.Int("size", len(value)), zap.Int("ttl", ttl))
+	err := m.cache.Set(key, value, ttl)
+	if err != nil {
+		logger.Debug("Cache manager: set operation failed", zap.String("key", key), zap.Error(err))
+	}
+	return err
 }
 
 // Delete removes a value from the cache by key
 // 通过键从缓存中删除值
 func (m *CacheManager) Delete(key string) error {
-	return m.cache.Delete(key)
+	logger.Debug("Cache manager: delete operation", zap.String("key", key))
+	err := m.cache.Delete(key)
+	if err != nil {
+		logger.Debug("Cache manager: delete operation failed", zap.String("key", key), zap.Error(err))
+	}
+	return err
 }
 
 // Close cleans up resources used by the cache

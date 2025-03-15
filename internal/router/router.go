@@ -35,7 +35,13 @@ func generateCacheKey(c *fiber.Ctx, route config.Route) string {
 	h.Write([]byte(c.Path()))
 	h.Write(c.Request().URI().QueryString())
 	h.Write(c.Body())
-	return route.Path + ":" + hex.EncodeToString(h.Sum(nil))
+	key := route.Path + ":" + hex.EncodeToString(h.Sum(nil))
+	logger.Debug("Generated cache key",
+		zap.String("method", c.Method()),
+		zap.String("path", c.Path()),
+		zap.String("route", route.Path),
+		zap.String("key", key))
+	return key
 }
 
 // shouldCache determines if a request should be cached based on configuration
@@ -44,18 +50,21 @@ func shouldCache(route config.Route, globalCacheEnabled bool, requestPath string
 	// If route explicitly disables cache, don't cache
 	// 如果路由明确禁用缓存，则不缓存
 	if !route.CacheEnable {
+		logger.Debug("Cache disabled for route", zap.String("path", route.Path))
 		return false
 	}
 
 	// If route enables cache but global cache is disabled, don't cache
 	// 如果路由启用缓存，但全局缓存禁用，则不缓存
 	if !globalCacheEnabled {
+		logger.Debug("Global cache disabled", zap.String("path", route.Path))
 		return false
 	}
 
 	// If cache TTL is 0, don't cache
 	// 如果缓存TTL为0，则不缓存
 	if route.CacheTTL <= 0 {
+		logger.Debug("Cache TTL is 0, not caching", zap.String("path", route.Path))
 		return false
 	}
 
@@ -63,20 +72,35 @@ func shouldCache(route config.Route, globalCacheEnabled bool, requestPath string
 	// 检查请求路径是否在可缓存路径列表中
 	if len(route.CachePaths) > 0 {
 		relativePath := strings.TrimPrefix(requestPath, route.Path)
+		logger.Debug("Checking cache paths",
+			zap.String("routePath", route.Path),
+			zap.String("requestPath", requestPath),
+			zap.String("relativePath", relativePath),
+			zap.Strings("cachePaths", route.CachePaths))
+
 		// If CachePaths is specified but the path doesn't match any, don't cache
 		// 如果指定了CachePaths但路径不匹配任何一个，则不缓存
 		pathMatch := false
 		for _, cachePath := range route.CachePaths {
 			if strings.HasPrefix(relativePath, cachePath) {
 				pathMatch = true
+				logger.Debug("Path match found for caching",
+					zap.String("relativePath", relativePath),
+					zap.String("cachePath", cachePath))
 				break
 			}
 		}
 		if !pathMatch {
+			logger.Debug("No matching cache path found, not caching",
+				zap.String("relativePath", relativePath))
 			return false
 		}
+	} else {
+		logger.Debug("No cache paths specified, caching all paths for route",
+			zap.String("path", route.Path))
 	}
 
+	logger.Debug("Request will be cached", zap.String("path", requestPath), zap.Int("ttl", route.CacheTTL))
 	return true
 }
 
@@ -114,22 +138,60 @@ func CreateNewHandler(route config.Route, globalCacheEnabled bool) fiber.Handler
 	lb := getLoadBalancer(route)
 
 	return func(c *fiber.Ctx) error {
+		requestStartTime := time.Now()
+		requestPath := c.Path()
+		requestMethod := c.Method()
+
+		logger.Debug("Handling request",
+			zap.String("path", requestPath),
+			zap.String("method", requestMethod),
+			zap.String("route", route.Path))
+
 		// Check if caching should be used
 		// 检查是否应该使用缓存
-		useCache := shouldCache(route, globalCacheEnabled, c.Path()) && cacheManager != nil
+		useCache := shouldCache(route, globalCacheEnabled, requestPath) && cacheManager != nil
+
+		if useCache {
+			logger.Debug("Cache is enabled for this request",
+				zap.String("path", requestPath),
+				zap.String("method", requestMethod))
+		} else {
+			logger.Debug("Cache is disabled for this request",
+				zap.String("path", requestPath),
+				zap.String("method", requestMethod))
+		}
 
 		// If using cache, try to get response from cache
 		// 如果使用缓存，尝试从缓存获取响应
 		if useCache {
 			cacheKey := generateCacheKey(c, route)
+			logger.Debug("Attempting to get response from cache",
+				zap.String("path", requestPath),
+				zap.String("key", cacheKey))
+
+			cacheStartTime := time.Now()
 			cachedResponse, err := cacheManager.Get(cacheKey)
+			cacheLookupDuration := time.Since(cacheStartTime)
+
 			if err == nil {
 				// Cache hit, return cached response
 				// 缓存命中，直接返回缓存的响应
-				logger.Debug("Cache hit", zap.String("path", c.Path()), zap.String("method", c.Method()))
+				logger.Debug("Cache hit",
+					zap.String("path", requestPath),
+					zap.String("method", requestMethod),
+					zap.String("key", cacheKey),
+					zap.Duration("lookupTime", cacheLookupDuration),
+					zap.Int("responseSize", len(cachedResponse)))
+
 				return c.Send(cachedResponse)
 			}
-			logger.Debug("Cache miss", zap.String("path", c.Path()), zap.String("method", c.Method()), zap.Error(err))
+
+			logger.Debug("Cache miss",
+				zap.String("path", requestPath),
+				zap.String("method", requestMethod),
+				zap.String("key", cacheKey),
+				zap.Duration("lookupTime", cacheLookupDuration),
+				zap.Error(err))
 		}
 
 		// 尝试所有健康的后端，直到成功或全部失败
@@ -231,12 +293,44 @@ func CreateNewHandler(route config.Route, globalCacheEnabled bool) fiber.Handler
 		// 如果是成功的响应并且应该缓存，则缓存响应
 		if useCache && statusCode >= 200 && statusCode < 300 {
 			cacheKey := generateCacheKey(c, route)
+			logger.Debug("Caching successful response",
+				zap.String("path", requestPath),
+				zap.String("method", requestMethod),
+				zap.String("key", cacheKey),
+				zap.Int("statusCode", statusCode),
+				zap.Int("responseSize", len(body)),
+				zap.Int("ttl", route.CacheTTL))
+
+			cacheStartTime := time.Now()
 			if err := cacheManager.Set(cacheKey, body, route.CacheTTL); err != nil {
-				logger.Error("Failed to cache response", zap.String("path", c.Path()), zap.Error(err))
+				logger.Error("Failed to cache response",
+					zap.String("path", requestPath),
+					zap.String("key", cacheKey),
+					zap.Error(err))
 			} else {
-				logger.Debug("Response cached", zap.String("path", c.Path()), zap.Int("ttl", route.CacheTTL))
+				cacheDuration := time.Since(cacheStartTime)
+				logger.Debug("Response cached successfully",
+					zap.String("path", requestPath),
+					zap.String("key", cacheKey),
+					zap.Int("ttl", route.CacheTTL),
+					zap.Duration("cacheTime", cacheDuration))
 			}
+		} else if useCache {
+			logger.Debug("Not caching response",
+				zap.String("path", requestPath),
+				zap.String("method", requestMethod),
+				zap.Int("statusCode", statusCode),
+				zap.Bool("useCache", useCache))
 		}
+
+		// 记录请求总处理时间
+		// Record total request processing time
+		requestDuration := time.Since(requestStartTime)
+		logger.Debug("Request completed",
+			zap.String("path", requestPath),
+			zap.String("method", requestMethod),
+			zap.Int("statusCode", statusCode),
+			zap.Duration("totalTime", requestDuration))
 
 		// Set response
 		// 设置响应
@@ -257,20 +351,53 @@ func Run(config_ *config.Config) {
 	// Initialize cache manager
 	// 初始化缓存管理器
 	if config_.Cache.Enabled {
+		logger.Info("Initializing cache manager",
+			zap.Bool("useRedis", config_.Cache.UseRedis),
+			zap.String("redisPrefix", config_.Cache.RedisPrefix))
+
 		var err error
+		cacheStartTime := time.Now()
 		cacheManager, err = cache.NewCacheManager(config_.Cache)
+		cacheDuration := time.Since(cacheStartTime)
+
 		if err != nil {
-			logger.Warn("Failed to initialize cache manager, running without cache", zap.Error(err))
+			logger.Warn("Failed to initialize cache manager, running without cache",
+				zap.Error(err),
+				zap.Duration("initTime", cacheDuration))
 		} else {
-			defer cacheManager.Close()
+			logger.Info("Cache manager initialized successfully",
+				zap.Bool("useRedis", config_.Cache.UseRedis),
+				zap.Duration("initTime", cacheDuration))
+			defer func() {
+				logger.Info("Closing cache manager")
+				cacheManager.Close()
+			}()
 		}
+	} else {
+		logger.Info("Cache is disabled in configuration, running without cache")
 	}
 
-	for _, route := range config_.Routes {
+	// 初始化路由处理程序
+	// Initialize route handlers
+	routeCount := len(config_.Routes)
+	logger.Info("Initializing routes", zap.Int("routeCount", routeCount))
+
+	for i, route := range config_.Routes {
+		backendCount := len(route.Backends)
+		logger.Info("Setting up route",
+			zap.Int("routeIndex", i+1),
+			zap.Int("totalRoutes", routeCount),
+			zap.String("path", route.Path),
+			zap.Int("backendCount", backendCount),
+			zap.Bool("cacheEnabled", route.CacheEnable && config_.Cache.Enabled),
+			zap.Int("cacheTTL", route.CacheTTL),
+			zap.Int("cachePathCount", len(route.CachePaths)))
+
 		app.All(route.Path+"/*", CreateNewHandler(route, config_.Cache.Enabled))
 	}
 
 	addrString := config_.Host + ":" + fmt.Sprint(config_.Port)
+	logger.Info("Starting server", zap.String("address", addrString))
 	if err := app.Listen(addrString); err != nil {
 		logger.Fatal("failed to run server", zap.Error(err))
 	}
