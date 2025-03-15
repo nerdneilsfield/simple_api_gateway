@@ -45,13 +45,17 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # run make fmt
+      # 准备环境并运行代码格式化
       -
-        name: Run make fmt
+        name: Prepare environment and run code formatting
         run: |
-          apt-get update
-          apt-get install -y make
+          sudo apt-get update
+          sudo apt-get install -y make
+          # 更新 Go 模块依赖
+          make mod-tidy
+          # 安装工具依赖
           make bootstrap
+          # 运行代码格式化
           make fmt
       -
         name: Run GoReleaser

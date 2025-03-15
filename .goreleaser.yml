@@ -3,10 +3,11 @@ env:
   - GO111MODULE=on
   - CGO_ENABLED=0
 
-# before:
-#   hooks:
-#     - ./scripts/manpages.sh
-#     - ./scripts/completions.sh
+before:
+  hooks:
+    - go mod tidy
+    # - ./scripts/manpages.sh
+    # - ./scripts/completions.sh
 
 builds:
   -

@@ -16,8 +16,12 @@ install:
 run:
     go run -ldflags "-X main.version=$(git describe --abbrev=0 --tags)" main.go
 
+# 更新 Go 模块依赖
+mod-tidy:
+    go mod tidy
+
 # 安装构建依赖
-bootstrap:
+bootstrap: mod-tidy
     go generate -tags tools tools/tools.go
     go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
     go install golang.org/x/tools/cmd/goimports@latest

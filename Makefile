@@ -18,8 +18,12 @@ install: ## install golang binary
 run: ## run the app
 	@go run -ldflags "-X main.version=$(shell git describe --abbrev=0 --tags)"  main.go
 
+.PHONY: mod-tidy
+mod-tidy: ## update go module dependencies
+	go mod tidy
+
 .PHONY: bootstrap
-bootstrap: ## install build deps
+bootstrap: mod-tidy ## install build deps
 	go generate -tags tools tools/tools.go
 	go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
 	go install golang.org/x/tools/cmd/goimports@latest
