@@ -1,0 +1,8 @@
+port = 8080
+host = "0.0.0.0"
+log_file_path = "./simple-api-gateway.log"
+
+[[route]]
+path = "/cloudflare"
+backend = "https://api.cloudflare.com"
+ua_client = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
