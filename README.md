@@ -7,6 +7,7 @@ Simple API Gateway is a lightweight API gateway tool for proxying requests to mu
 ## Features / 功能特点
 
 - Support for multiple backend service proxying / 支持多后端服务代理
+- Load balancing with round-robin and failover / 支持轮询负载均衡和故障转移
 - Configuration file validation / 配置文件验证
 - Detailed logging / 详细的日志记录
 - Support for debug and release modes / 支持调试和发布模式
@@ -120,6 +121,8 @@ docker-compose -f docker-compose-with-redis.yml up -d
 
 ```yaml
 # docker-compose-without-redis.yml
+version: "3.8"
+
 services:
   # API Gateway Service (Memory Cache) / API网关服务（内存缓存）
   simple-api-gateway:
@@ -170,11 +173,55 @@ redis_prefix = "api_gateway:"               # Redis key prefix / Redis键前缀
 
 [[route]]
 path = "/api"                               # Route path / 路由路径
-backend = "http://backend-service:8080"     # Backend service URL / 后端服务URL
+backends = [                                # Backend service URLs / 后端服务URL列表
+  "https://api1.example.com",
+  "https://api2.example.com",
+  "https://api3.example.com"
+]
 ua_client = "User-Agent string"             # User-Agent / 用户代理
 cache_ttl = 60                              # Cache TTL in seconds / 缓存有效期（秒）
 cache_enable = true                         # Enable cache for this route / 为此路由启用缓存
 ```
+
+## Load Balancing / 负载均衡
+
+Simple API Gateway supports load balancing across multiple backend servers for each route.
+
+*Simple API Gateway 支持对每个路由的多个后端服务器进行负载均衡。*
+
+### Features / 特性
+
+- Round-robin load balancing / 轮询负载均衡
+- Automatic failover / 自动故障转移
+- Health checking / 健康检查
+- Backend recovery / 后端恢复
+
+### Configuration / 配置
+
+For each route, you can specify multiple backend servers:
+
+*对于每个路由，您可以指定多个后端服务器：*
+
+```toml
+[[route]]
+path = "/api"
+backends = [
+  "https://api1.example.com",
+  "https://api2.example.com",
+  "https://api3.example.com"
+]
+```
+
+### Behavior / 行为
+
+- Requests are distributed across healthy backends in a round-robin fashion
+  *请求以轮询方式分布在健康的后端之间*
+- If a backend fails, it is marked as unhealthy and removed from the rotation
+  *如果后端失败，它将被标记为不健康并从轮询中移除*
+- After a timeout period (default: 30 seconds), unhealthy backends are retried
+  *在超时期（默认：30秒）后，将重试不健康的后端*
+- If all backends are unhealthy, the system will reset and try all backends again
+  *如果所有后端都不健康，系统将重置并再次尝试所有后端*
 
 ## Caching Feature / 缓存功能
 
@@ -206,7 +253,10 @@ For each route, you can configure caching behavior individually:
 ```toml
 [[route]]
 path = "/api"                               # Route path / 路由路径
-backend = "http://backend-service:8080"     # Backend service URL / 后端服务URL
+backends = [                                # Backend service URLs / 后端服务URL列表
+  "https://api1.example.com",
+  "https://api2.example.com"
+]
 ua_client = "User-Agent string"             # User-Agent / 用户代理
 cache_ttl = 60                              # Cache TTL in seconds (0 = no cache) / 缓存有效期（秒，0表示不缓存）
 cache_enable = true                         # Enable cache for this route / 为此路由启用缓存
@@ -238,6 +288,7 @@ Project structure:
   - `config/`: Configuration parsing and validation / 配置解析和验证
   - `router/`: Route setup and request handling / 路由设置和请求处理
   - `cache/`: Caching implementation / 缓存实现
+  - `loadbalancer/`: Load balancing implementation / 负载均衡实现
 
 ## Contributing / 贡献
 
