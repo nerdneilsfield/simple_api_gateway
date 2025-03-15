@@ -1,100 +1,251 @@
 # Simple API Gateway
 
-Simple API Gateway 是一个轻量级的 API 网关工具，用于代理请求到多个后端服务。
+Simple API Gateway is a lightweight API gateway tool for proxying requests to multiple backend services.
 
-## 功能特点
+*简单API网关是一个轻量级的API网关工具，用于将请求代理到多个后端服务。*
 
-- 支持多后端服务代理
-- 配置文件验证
-- 详细的日志记录
-- 支持调试和发布模式
+## Features / 功能特点
 
-## 安装
+- Support for multiple backend service proxying / 支持多后端服务代理
+- Configuration file validation / 配置文件验证
+- Detailed logging / 详细的日志记录
+- Support for debug and release modes / 支持调试和发布模式
+- Request caching with Redis or in-memory / 支持Redis或内存请求缓存
 
-确保您已安装 Go 1.16 或更高版本，然后运行：
+## Installation / 安装
+
+Ensure you have Go 1.16 or higher installed, then run:
+
+*确保您已安装 Go 1.16 或更高版本，然后运行：*
 
 ```bash
 go get github.com/nerdneilsfield/simple_api_gateway
 ```
 
-## 使用方法 / Usage
+## Usage / 使用方法
 
-Simple API Gateway 提供了以下命令 / Commands：
+Simple API Gateway provides the following commands:
 
-1. 启动服务 / Start the service:
+*Simple API Gateway 提供以下命令：*
+
+1. Start the service / 启动服务:
 
 ```bash
 simple-api-gateway serve <config_file_path>
 ```
 
-2. 检查配置文件 / Check the config file:
+2. Check the config file / 检查配置文件:
 
 ```bash
 simple-api-gateway check <config_file_path>
 ```
 
-3. 查看版本信息 / View the version information:
+3. View the version information / 查看版本信息:
 
 ```bash
 simple-api-gateway version
 ```
 
-4. 生成配置文件 / Generate the config file:
+4. Generate the config file / 生成配置文件:
 
 ```bash
 simple-api-gateway gen <config_file_path>
 ```
 
-## 使用 Docker 运行 / Use Docker to run
+## Running with Docker / 使用 Docker 运行
+
+### Simple Docker Run / 简单Docker运行
 
 ```bash
 docker run -d --name simple-api-gateway -p 8080:8080 -v /etc/simple_api_gateway/config.toml:/config.toml nerdneils/simple_api_gateway:latest
 ```
 
+### Docker Compose / Docker Compose部署
+
+The project provides two Docker Compose configurations: one with Redis cache and one with in-memory cache.
+
+*项目提供了两种Docker Compose配置：一种使用Redis缓存，一种使用内存缓存。*
+
+#### With Redis Cache / 使用Redis缓存
+
 ```yaml
-# docker-compose.yml
+# docker-compose-with-redis.yml
 version: "3.8"
+
 services:
+  # API Gateway Service / API网关服务
   simple-api-gateway:
     image: nerdneils/simple_api_gateway:latest
+    container_name: simple-api-gateway
     ports:
-      - 8080:8080
+      - "8080:8080"
     volumes:
-      - /etc/simple_api_gateway/config.toml:/config.toml
+      - ./config-with-redis.toml:/config.toml
+    depends_on:
+      - redis
     restart: always
+    command: serve /config.toml
+    networks:
+      - api-gateway-network
+
+  # Redis Cache Service / Redis缓存服务
+  redis:
+    image: redis:7-alpine
+    container_name: redis-cache
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: always
+    networks:
+      - api-gateway-network
+    command: redis-server --appendonly yes
+
+networks:
+  api-gateway-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+    driver: local
 ```
 
-## 配置 / Configuration
+Start with / 启动命令:
 
-配置文件使用 TOML 格式。配置文件示例：
-Configuration example (Using .toml format):
+```bash
+docker-compose -f docker-compose-with-redis.yml up -d
+```
+
+#### Without Redis (Memory Cache) / 不使用Redis（内存缓存）
+
+```yaml
+# docker-compose-without-redis.yml
+services:
+  # API Gateway Service (Memory Cache) / API网关服务（内存缓存）
+  simple-api-gateway:
+    image: nerdneils/simple_api_gateway:latest
+    container_name: simple-api-gateway
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config-without-redis.toml:/config.toml
+    restart: always
+    command: serve /config.toml
+    networks:
+      - api-gateway-network
+
+networks:
+  api-gateway-network:
+    driver: bridge
+```
+
+Start with / 启动命令:
+
+```bash
+docker-compose -f docker-compose-without-redis.yml up -d
+```
+
+For more details on Docker deployment, see `DOCKER-README.md`.
+
+*有关Docker部署的更多详细信息，请参阅`DOCKER-README.md`。*
+
+## Configuration / 配置
+
+Configuration file uses TOML format. Example configuration:
+
+*配置文件使用 TOML 格式。配置文件示例：*
 
 ```toml
 # example_test.toml
-port = 8080
-host = "0.0.0.0"
-log_file_path = "/var/log/simple-api-gateway.log"
+port = 8080                                  # Port to listen on / 监听端口
+host = "0.0.0.0"                            # Host to bind to / 绑定主机
+log_file_path = "/var/log/simple-api-gateway.log"  # Log file path / 日志文件路径
+
+[cache]
+enabled = true                              # Enable cache / 启用缓存
+use_redis = true                            # Use Redis for caching / 使用Redis缓存
+redis_url = "redis://localhost:6379"        # Redis connection URL / Redis连接URL
+redis_db = 0                                # Redis database number / Redis数据库编号
+redis_prefix = "api_gateway:"               # Redis key prefix / Redis键前缀
 
 [[route]]
-path = "/cloudflare"
-backend = "https://api.cloudflare.com"
-ua_client = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+path = "/api"                               # Route path / 路由路径
+backend = "http://backend-service:8080"     # Backend service URL / 后端服务URL
+ua_client = "User-Agent string"             # User-Agent / 用户代理
+cache_ttl = 60                              # Cache TTL in seconds / 缓存有效期（秒）
+cache_enable = true                         # Enable cache for this route / 为此路由启用缓存
 ```
 
-## 开发
+## Caching Feature / 缓存功能
 
-项目结构：
+Simple API Gateway supports request caching using Redis or in-memory cache to improve performance.
 
-- `cmd/`: 包含命令行接口相关代码
-- `internal/`: 包含内部包
-  - `config/`: 配置解析和验证
-  - `router/`: 路由设置和请求处理
+*Simple API Gateway 支持使用 Redis 或内存缓存请求，以提高性能。*
 
-## 贡献
+### Cache Configuration / 缓存配置
 
-欢迎提交 issues 和 pull requests。
+Add the following section to your configuration file to configure caching:
 
-## 许可证
+*在配置文件中添加以下部分来配置缓存：*
+
+```toml
+[cache]
+enabled = true                              # Enable cache / 启用缓存
+use_redis = true                            # Use Redis for caching / 使用Redis缓存
+redis_url = "redis://localhost:6379"        # Redis connection URL / Redis连接URL
+redis_db = 0                                # Redis database number / Redis数据库编号
+redis_prefix = "api_gateway:"               # Redis key prefix / Redis键前缀
+```
+
+### Route Cache Configuration / 路由缓存配置
+
+For each route, you can configure caching behavior individually:
+
+*对于每个路由，可以单独配置缓存行为：*
+
+```toml
+[[route]]
+path = "/api"                               # Route path / 路由路径
+backend = "http://backend-service:8080"     # Backend service URL / 后端服务URL
+ua_client = "User-Agent string"             # User-Agent / 用户代理
+cache_ttl = 60                              # Cache TTL in seconds (0 = no cache) / 缓存有效期（秒，0表示不缓存）
+cache_enable = true                         # Enable cache for this route / 为此路由启用缓存
+```
+
+### Caching Behavior / 缓存行为
+
+- If global cache is disabled (`cache.enabled = false`), no routes will be cached
+  *如果全局禁用缓存（`cache.enabled = false`），则所有路由都不会缓存*
+- If a route explicitly disables caching (`cache_enable = false`), that route won't be cached
+  *如果路由明确禁用缓存（`cache_enable = false`），则该路由不会缓存*
+- If cache TTL is 0, the route won't be cached
+  *如果缓存TTL为0，则该路由不会缓存*
+- If Redis connection fails, the system will automatically fall back to in-memory cache
+  *如果Redis连接失败，系统会自动降级使用内存缓存*
+
+Cache keys are generated from the request method, path, query parameters, and request body, ensuring that identical requests hit the same cache.
+
+*缓存键由请求方法、路径、查询参数和请求体组合生成，确保相同的请求会命中相同的缓存。*
+
+## Development / 开发
+
+Project structure:
+
+*项目结构：*
+
+- `cmd/`: Contains command-line interface related code / 包含命令行接口相关代码
+- `internal/`: Contains internal packages / 包含内部包
+  - `config/`: Configuration parsing and validation / 配置解析和验证
+  - `router/`: Route setup and request handling / 路由设置和请求处理
+  - `cache/`: Caching implementation / 缓存实现
+
+## Contributing / 贡献
+
+Contributions via issues and pull requests are welcome.
+
+*欢迎通过 issues 和 pull requests 做出贡献。*
+
+## License / 许可证
 
 [BSD 3-Clause License]
 
@@ -127,9 +278,8 @@ SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
 CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
 ```
 
-## Star History
+## Star History / 星标历史
 
 [![Star History Chart](https://api.star-history.com/svg?repos=nerdneilsfield/simple_api_gateway&type=Date)](https://star-history.com/#nerdneilsfield/simple_api_gateway&Date)

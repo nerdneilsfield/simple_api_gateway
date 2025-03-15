@@ -1,0 +1,17 @@
+services:
+  # API网关服务（使用内存缓存）
+  simple-api-gateway:
+    image: nerdneils/simple_api_gateway:latest
+    container_name: simple-api-gateway
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config-without-redis.toml:/config.toml
+    restart: always
+    command: serve /config.toml
+    networks:
+      - api-gateway-network
+
+networks:
+  api-gateway-network:
+    driver: bridge 

@@ -1,0 +1,17 @@
+port = 8080                                  # Port to listen on / 监听端口
+host = "0.0.0.0"                            # Host to bind to / 绑定主机
+log_file_path = "/var/log/simple-api-gateway.log"  # Log file path / 日志文件路径
+
+[cache]
+enabled = true                              # Enable cache / 启用缓存
+use_redis = true                            # Use Redis for caching / 使用Redis缓存
+redis_url = "redis://redis:6379"            # Redis connection URL / Redis连接URL
+redis_db = 0                                # Redis database number / Redis数据库编号
+redis_prefix = "api_gateway:"               # Redis key prefix / Redis键前缀
+
+[[route]]
+path = "/api"                               # Route path / 路由路径
+backend = "https://api.example.com"         # Backend service URL / 后端服务URL
+ua_client = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"  # User-Agent / 用户代理
+cache_ttl = 300                             # Cache TTL in seconds (0 = no cache) / 缓存有效期（秒，0表示不缓存）
+cache_enable = true                         # Enable cache for this route / 为此路由启用缓存 
