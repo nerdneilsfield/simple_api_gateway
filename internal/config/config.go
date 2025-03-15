@@ -35,11 +35,11 @@ type Cache struct {
 }
 
 type Route struct {
-	Path        string `toml:"path"`         // Route path / 路由路径
-	Backend     string `toml:"backend"`      // Backend service URL / 后端服务URL
-	UaClient    string `toml:"ua_client"`    // User-Agent / 用户代理
-	CacheTTL    int    `toml:"cache_ttl"`    // Cache TTL in seconds (0 = no cache) / 缓存时间，单位为秒，0表示不缓存
-	CacheEnable bool   `toml:"cache_enable"` // Enable cache for this route / 是否启用缓存，默认跟随全局设置
+	Path        string   `toml:"path"`         // Route path / 路由路径
+	Backends    []string `toml:"backends"`     // Backend service URLs / 后端服务URL列表
+	UaClient    string   `toml:"ua_client"`    // User-Agent / 用户代理
+	CacheTTL    int      `toml:"cache_ttl"`    // Cache TTL in seconds (0 = no cache) / 缓存时间，单位为秒，0表示不缓存
+	CacheEnable bool     `toml:"cache_enable"` // Enable cache for this route / 是否启用缓存，默认跟随全局设置
 }
 
 // ParseConfig parses the config file at the given path
@@ -108,19 +108,31 @@ func ValidateConfig(config *Config) error {
 			return fmt.Errorf("route path is duplicated")
 		}
 		existingPaths[route.Path] = true
-		if route.Backend == "" {
-			logger.Error("route backend is empty", zap.String("path", route.Path))
-			return fmt.Errorf("route backend is empty")
+
+		// 验证后端服务列表
+		if len(route.Backends) == 0 {
+			logger.Error("route backends is empty", zap.String("path", route.Path))
+			return fmt.Errorf("route backends is empty")
 		}
 
-		if _, err := url.ParseRequestURI(route.Backend); err != nil {
-			logger.Error("route backend is not a valid URL", zap.String("path", route.Path), zap.String("backend", route.Backend))
-			return fmt.Errorf("route backend is not a valid URL")
-		}
+		// 验证每个后端服务URL
+		for _, backend := range route.Backends {
+			if backend == "" {
+				logger.Error("route backend is empty", zap.String("path", route.Path))
+				return fmt.Errorf("route backend is empty")
+			}
 
-		if _, err := network.HttpConnect(route.Backend); err != nil {
-			logger.Error("failed to connect to route backend", zap.String("path", route.Path), zap.String("backend", route.Backend))
-			return fmt.Errorf("failed to connect to route backend")
+			if _, err := url.ParseRequestURI(backend); err != nil {
+				logger.Error("route backend is not a valid URL", zap.String("path", route.Path), zap.String("backend", backend))
+				return fmt.Errorf("route backend is not a valid URL")
+			}
+
+			if _, err := network.HttpConnect(backend); err != nil {
+				logger.Warn("failed to connect to route backend, but will try during runtime",
+					zap.String("path", route.Path),
+					zap.String("backend", backend),
+					zap.Error(err))
+			}
 		}
 
 		// Validate cache TTL / 验证缓存TTL

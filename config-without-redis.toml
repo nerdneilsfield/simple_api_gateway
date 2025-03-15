@@ -11,7 +11,11 @@ redis_prefix = "api_gateway:"               # Redis key prefix / Redis键前缀
 
 [[route]]
 path = "/api"                               # Route path / 路由路径
-backend = "https://api.example.com"         # Backend service URL / 后端服务URL
+backends = [                                # Backend service URLs / 后端服务URL列表
+  "https://api.example.com",
+  "https://api2.example.com",
+  "https://api3.example.com"
+]
 ua_client = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"  # User-Agent / 用户代理
 cache_ttl = 300                             # Cache TTL in seconds (0 = no cache) / 缓存有效期（秒，0表示不缓存）
 cache_enable = true                         # Enable cache for this route / 为此路由启用缓存 
