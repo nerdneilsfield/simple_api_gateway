@@ -2,12 +2,33 @@ port = 8080
 host = "0.0.0.0"
 log_file_path = "/var/log/simple-api-gateway.log"
 
+[cache]
+enabled = true
+use_redis = false
+redis_url = ""
+redis_db = 0
+redis_prefix = "api_gateway:"
+
 [[route]]
 path = "/hello"
-backend = "http://localhost:8080"
+backends = [
+  "http://localhost:8080",
+  "http://localhost:8081"
+]
 ua_client = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+cache_ttl = 60
+cache_enable = true
+cache_paths = [
+  "/user",
+  "/product",
+]
 
 [[route]]
 path = "/hello2"
-backend = "http://localhost:8081"
+backends = [
+  "http://localhost:8081",
+  "http://localhost:8082"
+]
 ua_client = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+cache_ttl = 0
+cache_enable = false

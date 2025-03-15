@@ -40,6 +40,7 @@ type Route struct {
 	UaClient    string   `toml:"ua_client"`    // User-Agent / 用户代理
 	CacheTTL    int      `toml:"cache_ttl"`    // Cache TTL in seconds (0 = no cache) / 缓存时间，单位为秒，0表示不缓存
 	CacheEnable bool     `toml:"cache_enable"` // Enable cache for this route / 是否启用缓存，默认跟随全局设置
+	CachePaths  []string `toml:"cache_paths"`  // Relative paths that can be cached / 可以被缓存的相对路径列表
 }
 
 // ParseConfig parses the config file at the given path

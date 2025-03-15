@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -39,7 +40,7 @@ func generateCacheKey(c *fiber.Ctx, route config.Route) string {
 
 // shouldCache determines if a request should be cached based on configuration
 // 根据配置确定请求是否应该被缓存
-func shouldCache(route config.Route, globalCacheEnabled bool) bool {
+func shouldCache(route config.Route, globalCacheEnabled bool, requestPath string) bool {
 	// If route explicitly disables cache, don't cache
 	// 如果路由明确禁用缓存，则不缓存
 	if !route.CacheEnable {
@@ -56,6 +57,24 @@ func shouldCache(route config.Route, globalCacheEnabled bool) bool {
 	// 如果缓存TTL为0，则不缓存
 	if route.CacheTTL <= 0 {
 		return false
+	}
+
+	// Check if the request path is in the cache paths list
+	// 检查请求路径是否在可缓存路径列表中
+	if len(route.CachePaths) > 0 {
+		relativePath := strings.TrimPrefix(requestPath, route.Path)
+		// If CachePaths is specified but the path doesn't match any, don't cache
+		// 如果指定了CachePaths但路径不匹配任何一个，则不缓存
+		pathMatch := false
+		for _, cachePath := range route.CachePaths {
+			if strings.HasPrefix(relativePath, cachePath) {
+				pathMatch = true
+				break
+			}
+		}
+		if !pathMatch {
+			return false
+		}
 	}
 
 	return true
@@ -97,7 +116,7 @@ func CreateNewHandler(route config.Route, globalCacheEnabled bool) fiber.Handler
 	return func(c *fiber.Ctx) error {
 		// Check if caching should be used
 		// 检查是否应该使用缓存
-		useCache := shouldCache(route, globalCacheEnabled) && cacheManager != nil
+		useCache := shouldCache(route, globalCacheEnabled, c.Path()) && cacheManager != nil
 
 		// If using cache, try to get response from cache
 		// 如果使用缓存，尝试从缓存获取响应

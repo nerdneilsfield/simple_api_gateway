@@ -26,6 +26,8 @@ services:
     networks:
       - api-gateway-network
     command: redis-server --appendonly yes
+    sysctls:
+      vm.overcommit_memory: 1
 
 networks:
   api-gateway-network:
