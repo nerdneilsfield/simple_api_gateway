@@ -44,6 +44,15 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      # run make fmt
+      -
+        name: Run make fmt
+        run: |
+          apt-get update
+          apt-get install -y make
+          make bootstrap
+          make fmt
       -
         name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6

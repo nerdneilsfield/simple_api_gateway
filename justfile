@@ -19,6 +19,12 @@ run:
 # 安装构建依赖
 bootstrap:
     go generate -tags tools tools/tools.go
+    go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+    go install golang.org/x/tools/cmd/goimports@latest
+    go install honnef.co/go/tools/cmd/staticcheck@latest
+    go install mvdan.cc/gofumpt@latest
+    go install github.com/daixiang0/gci@latest
+    go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
 # 运行测试并显示覆盖率
 test: clean
@@ -42,6 +48,26 @@ fmt:
 # 运行 linter
 lint:
     golangci-lint run -c .golang-ci.yml
+
+# 运行 go vet 检查
+vet:
+    go vet ./...
+
+# 运行 gocyclo 检查循环复杂度
+cyclo:
+    gocyclo -over 15 .
+
+# 运行 staticcheck 静态分析
+staticcheck:
+    staticcheck ./...
+
+# 运行 goimports 检查导入格式
+imports:
+    goimports -l -w .
+
+# 运行所有代码检查
+check: fmt vet cyclo staticcheck imports lint
+    @echo "All code checks passed!"
 
 # 测试发布
 release-test:

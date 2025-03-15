@@ -17,13 +17,17 @@ import (
 	"go.uber.org/zap"
 )
 
-var logger = loggerPkg.GetLogger()
-var cacheManager *cache.CacheManager
+var (
+	logger       = loggerPkg.GetLogger()
+	cacheManager *cache.CacheManager
+)
 
 // 存储每个路由的负载均衡器
 // Store load balancers for each route
-var routeLoadBalancers = make(map[string]loadbalancer.LoadBalancer)
-var loadBalancerMutex sync.RWMutex
+var (
+	routeLoadBalancers = make(map[string]loadbalancer.LoadBalancer)
+	loadBalancerMutex  sync.RWMutex
+)
 
 // generateCacheKey creates a unique cache key based on the request
 // 根据请求创建唯一的缓存键
@@ -147,180 +151,31 @@ func CreateNewHandler(route config.Route, globalCacheEnabled bool) fiber.Handler
 			zap.String("method", requestMethod),
 			zap.String("route", route.Path))
 
-		// Check if caching should be used
 		// 检查是否应该使用缓存
+		// Check if caching should be used
 		useCache := shouldCache(route, globalCacheEnabled, requestPath) && cacheManager != nil
 
-		if useCache {
-			logger.Debug("Cache is enabled for this request",
-				zap.String("path", requestPath),
-				zap.String("method", requestMethod))
-		} else {
-			logger.Debug("Cache is disabled for this request",
-				zap.String("path", requestPath),
-				zap.String("method", requestMethod))
-		}
+		logCacheStatus(useCache, requestPath, requestMethod)
 
-		// If using cache, try to get response from cache
 		// 如果使用缓存，尝试从缓存获取响应
+		// If using cache, try to get response from cache
 		if useCache {
-			cacheKey := generateCacheKey(c, route)
-			logger.Debug("Attempting to get response from cache",
-				zap.String("path", requestPath),
-				zap.String("key", cacheKey))
-
-			cacheStartTime := time.Now()
-			cachedResponse, err := cacheManager.Get(cacheKey)
-			cacheLookupDuration := time.Since(cacheStartTime)
-
-			if err == nil {
-				// Cache hit, return cached response
-				// 缓存命中，直接返回缓存的响应
-				logger.Debug("Cache hit",
-					zap.String("path", requestPath),
-					zap.String("method", requestMethod),
-					zap.String("key", cacheKey),
-					zap.Duration("lookupTime", cacheLookupDuration),
-					zap.Int("responseSize", len(cachedResponse)))
-
+			if cachedResponse := tryGetFromCache(c, route, requestPath, requestMethod); cachedResponse != nil {
 				return c.Send(cachedResponse)
 			}
-
-			logger.Debug("Cache miss",
-				zap.String("path", requestPath),
-				zap.String("method", requestMethod),
-				zap.String("key", cacheKey),
-				zap.Duration("lookupTime", cacheLookupDuration),
-				zap.Error(err))
 		}
 
-		// 尝试所有健康的后端，直到成功或全部失败
-		// Try all healthy backends until success or all fail
-		var statusCode int
-		var body []byte
-
-		// 记录开始时间，用于计算响应时间
-		// Record start time for response time calculation
-		startTime := time.Now()
-
-		// 获取下一个后端
-		// Get next backend
-		backendURL := lb.NextBackend()
-		if backendURL == "" {
-			return c.Status(503).SendString("No backend servers available")
-		}
-
-		// 解析后端URL
-		// Parse backend URL
-		targetURL, err := url.Parse(backendURL)
+		// 处理后端请求
+		// Handle backend request
+		statusCode, body, err := handleBackendRequest(c, lb, route)
 		if err != nil {
-			logger.Error("Error parsing backend URL", zap.String("backend", backendURL), zap.Error(err))
-			return c.Status(500).SendString("Error parsing backend URL")
+			return err
 		}
 
-		// Build target URL
-		// 构建目标URL
-		trimmedPath := c.Path()[len(route.Path):]
-		queryString := string(c.Request().URI().QueryString())
-		targetFullURL := targetURL.String() + trimmedPath
-		if queryString != "" {
-			targetFullURL += "?" + queryString
-		}
-
-		// Create proxy request
-		// 创建代理请求
-		req := fiber.AcquireAgent()
-		defer fiber.ReleaseAgent(req)
-
-		// Set method and URL
-		// 设置方法和URL
-		req.Request().SetRequestURI(targetFullURL)
-		req.Request().Header.SetMethod(string(c.Method()))
-
-		// Copy all headers
-		// 复制所有头部
-		c.Request().Header.VisitAll(func(key, value []byte) {
-			req.Request().Header.SetBytesKV(key, value)
-		})
-
-		if route.UaClient != "" {
-			req.Request().Header.Set("User-Agent", route.UaClient)
-		}
-
-		// Add request body
-		// 添加请求体
-		if len(c.Body()) > 0 {
-			req.Request().SetBody(c.Body())
-		}
-
-		// Send request
-		// 发送请求
-		if err := req.Parse(); err != nil {
-			lb.ReportFailure(backendURL)
-			logger.Error("Error parsing request",
-				zap.String("backend", backendURL),
-				zap.Error(err))
-			return c.Status(500).SendString(fmt.Sprintf("Error: %v", err))
-		}
-
-		// Send request and get response
-		// 发送请求并获取响应
-		statusCode, body, errs := req.Bytes()
-
-		// 计算响应时间
-		// Calculate response time
-		responseTime := time.Since(startTime)
-
-		if len(errs) > 0 {
-			// 请求失败，报告失败
-			// Request failed, report failure
-			lb.ReportFailure(backendURL)
-			logger.Error("Backend request failed",
-				zap.String("backend", backendURL),
-				zap.Errors("errors", errs))
-			return c.Status(500).SendString(fmt.Sprintf("Error: %v", errs))
-		}
-
-		// 请求成功，报告成功
-		// Request succeeded, report success
-		lb.ReportSuccess(backendURL, responseTime)
-		logger.Debug("Backend request succeeded",
-			zap.String("backend", backendURL),
-			zap.Int("statusCode", statusCode),
-			zap.Duration("responseTime", responseTime))
-
-		// If successful response and should cache, cache the response
-		// 如果是成功的响应并且应该缓存，则缓存响应
-		if useCache && statusCode >= 200 && statusCode < 300 {
-			cacheKey := generateCacheKey(c, route)
-			logger.Debug("Caching successful response",
-				zap.String("path", requestPath),
-				zap.String("method", requestMethod),
-				zap.String("key", cacheKey),
-				zap.Int("statusCode", statusCode),
-				zap.Int("responseSize", len(body)),
-				zap.Int("ttl", route.CacheTTL))
-
-			cacheStartTime := time.Now()
-			if err := cacheManager.Set(cacheKey, body, route.CacheTTL); err != nil {
-				logger.Error("Failed to cache response",
-					zap.String("path", requestPath),
-					zap.String("key", cacheKey),
-					zap.Error(err))
-			} else {
-				cacheDuration := time.Since(cacheStartTime)
-				logger.Debug("Response cached successfully",
-					zap.String("path", requestPath),
-					zap.String("key", cacheKey),
-					zap.Int("ttl", route.CacheTTL),
-					zap.Duration("cacheTime", cacheDuration))
-			}
-		} else if useCache {
-			logger.Debug("Not caching response",
-				zap.String("path", requestPath),
-				zap.String("method", requestMethod),
-				zap.Int("statusCode", statusCode),
-				zap.Bool("useCache", useCache))
+		// 如果需要，缓存响应
+		// Cache response if needed
+		if useCache {
+			tryCacheResponse(c, route, requestPath, requestMethod, statusCode, body)
 		}
 
 		// 记录请求总处理时间
@@ -332,14 +187,209 @@ func CreateNewHandler(route config.Route, globalCacheEnabled bool) fiber.Handler
 			zap.Int("statusCode", statusCode),
 			zap.Duration("totalTime", requestDuration))
 
-		// Set response
 		// 设置响应
+		// Set response
 		c.Status(statusCode)
-
-		// Copy response headers (this part may need to be adjusted based on actual needs)
-		// 复制响应头 (这部分可能需要根据实际情况调整)
-
 		return c.Send(body)
+	}
+}
+
+// logCacheStatus logs whether cache is enabled for the request
+// 记录请求是否启用了缓存
+func logCacheStatus(useCache bool, requestPath, requestMethod string) {
+	if useCache {
+		logger.Debug("Cache is enabled for this request",
+			zap.String("path", requestPath),
+			zap.String("method", requestMethod))
+	} else {
+		logger.Debug("Cache is disabled for this request",
+			zap.String("path", requestPath),
+			zap.String("method", requestMethod))
+	}
+}
+
+// tryGetFromCache attempts to get a response from cache
+// 尝试从缓存获取响应
+func tryGetFromCache(c *fiber.Ctx, route config.Route, requestPath, requestMethod string) []byte {
+	cacheKey := generateCacheKey(c, route)
+	logger.Debug("Attempting to get response from cache",
+		zap.String("path", requestPath),
+		zap.String("key", cacheKey))
+
+	cacheStartTime := time.Now()
+	cachedResponse, err := cacheManager.Get(cacheKey)
+	cacheLookupDuration := time.Since(cacheStartTime)
+
+	if err == nil {
+		// Cache hit, return cached response
+		// 缓存命中，直接返回缓存的响应
+		logger.Debug("Cache hit",
+			zap.String("path", requestPath),
+			zap.String("method", requestMethod),
+			zap.String("key", cacheKey),
+			zap.Duration("lookupTime", cacheLookupDuration),
+			zap.Int("responseSize", len(cachedResponse)))
+
+		return cachedResponse
+	}
+
+	logger.Debug("Cache miss",
+		zap.String("path", requestPath),
+		zap.String("method", requestMethod),
+		zap.String("key", cacheKey),
+		zap.Duration("lookupTime", cacheLookupDuration),
+		zap.Error(err))
+
+	return nil
+}
+
+// handleBackendRequest processes the request to the backend server
+// 处理后端服务器请求
+func handleBackendRequest(c *fiber.Ctx, lb loadbalancer.LoadBalancer, route config.Route) (int, []byte, error) {
+	// 记录开始时间，用于计算响应时间
+	// Record start time for response time calculation
+	startTime := time.Now()
+
+	// 获取下一个后端
+	// Get next backend
+	backendURL := lb.NextBackend()
+	if backendURL == "" {
+		return 503, nil, c.Status(503).SendString("No backend servers available")
+	}
+
+	// 构建代理请求
+	// Build proxy request
+	targetFullURL, err := buildTargetURL(c, backendURL, route)
+	if err != nil {
+		logger.Error("Error parsing backend URL", zap.String("backend", backendURL), zap.Error(err))
+		return 500, nil, c.Status(500).SendString("Error parsing backend URL")
+	}
+
+	// 创建并发送请求
+	// Create and send request
+	statusCode, body, err := sendProxyRequest(c, targetFullURL, route)
+	if err != nil {
+		lb.ReportFailure(backendURL)
+		logger.Error("Backend request failed",
+			zap.String("backend", backendURL),
+			zap.Error(err))
+		return 500, nil, c.Status(500).SendString(fmt.Sprintf("Error: %v", err))
+	}
+
+	// 请求成功，报告成功
+	// Request succeeded, report success
+	responseTime := time.Since(startTime)
+	lb.ReportSuccess(backendURL, responseTime)
+	logger.Debug("Backend request succeeded",
+		zap.String("backend", backendURL),
+		zap.Int("statusCode", statusCode),
+		zap.Duration("responseTime", responseTime))
+
+	return statusCode, body, nil
+}
+
+// buildTargetURL constructs the target URL for the proxy request
+// 构建代理请求的目标URL
+func buildTargetURL(c *fiber.Ctx, backendURL string, route config.Route) (string, error) {
+	// 解析后端URL
+	// Parse backend URL
+	targetURL, err := url.Parse(backendURL)
+	if err != nil {
+		return "", err
+	}
+
+	// Build target URL
+	// 构建目标URL
+	trimmedPath := c.Path()[len(route.Path):]
+	queryString := string(c.Request().URI().QueryString())
+	targetFullURL := targetURL.String() + trimmedPath
+	if queryString != "" {
+		targetFullURL += "?" + queryString
+	}
+
+	return targetFullURL, nil
+}
+
+// sendProxyRequest sends the request to the backend and returns the response
+// 向后端发送请求并返回响应
+func sendProxyRequest(c *fiber.Ctx, targetFullURL string, route config.Route) (int, []byte, error) {
+	// Create proxy request
+	// 创建代理请求
+	req := fiber.AcquireAgent()
+	defer fiber.ReleaseAgent(req)
+
+	// Set method and URL
+	// 设置方法和URL
+	req.Request().SetRequestURI(targetFullURL)
+	req.Request().Header.SetMethod(string(c.Method()))
+
+	// Copy all headers
+	// 复制所有头部
+	c.Request().Header.VisitAll(func(key, value []byte) {
+		req.Request().Header.SetBytesKV(key, value)
+	})
+
+	if route.UaClient != "" {
+		req.Request().Header.Set("User-Agent", route.UaClient)
+	}
+
+	// Add request body
+	// 添加请求体
+	if len(c.Body()) > 0 {
+		req.Request().SetBody(c.Body())
+	}
+
+	// Send request
+	// 发送请求
+	if err := req.Parse(); err != nil {
+		return 0, nil, err
+	}
+
+	// Send request and get response
+	// 发送请求并获取响应
+	statusCode, body, errs := req.Bytes()
+	if len(errs) > 0 {
+		return 0, nil, errs[0]
+	}
+
+	return statusCode, body, nil
+}
+
+// tryCacheResponse attempts to cache a successful response
+// 尝试缓存成功的响应
+func tryCacheResponse(c *fiber.Ctx, route config.Route, requestPath, requestMethod string, statusCode int, body []byte) {
+	// If successful response and should cache, cache the response
+	// 如果是成功的响应并且应该缓存，则缓存响应
+	if statusCode >= 200 && statusCode < 300 {
+		cacheKey := generateCacheKey(c, route)
+		logger.Debug("Caching successful response",
+			zap.String("path", requestPath),
+			zap.String("method", requestMethod),
+			zap.String("key", cacheKey),
+			zap.Int("statusCode", statusCode),
+			zap.Int("responseSize", len(body)),
+			zap.Int("ttl", route.CacheTTL))
+
+		cacheStartTime := time.Now()
+		if err := cacheManager.Set(cacheKey, body, route.CacheTTL); err != nil {
+			logger.Error("Failed to cache response",
+				zap.String("path", requestPath),
+				zap.String("key", cacheKey),
+				zap.Error(err))
+		} else {
+			cacheDuration := time.Since(cacheStartTime)
+			logger.Debug("Response cached successfully",
+				zap.String("path", requestPath),
+				zap.String("key", cacheKey),
+				zap.Int("ttl", route.CacheTTL),
+				zap.Duration("cacheTime", cacheDuration))
+		}
+	} else {
+		logger.Debug("Not caching response",
+			zap.String("path", requestPath),
+			zap.String("method", requestMethod),
+			zap.Int("statusCode", statusCode),
+			zap.Bool("useCache", true))
 	}
 }
 

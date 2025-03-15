@@ -1,4 +1,4 @@
-projectname?=shlogin
+projectname?=simple_api_gateway
 
 default: help
 
@@ -21,31 +21,57 @@ run: ## run the app
 .PHONY: bootstrap
 bootstrap: ## install build deps
 	go generate -tags tools tools/tools.go
+	go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+	go install golang.org/x/tools/cmd/goimports@latest
+	go install honnef.co/go/tools/cmd/staticcheck@latest
+	go install mvdan.cc/gofumpt@latest
+	go install github.com/daixiang0/gci@latest
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
-PHONY: test
+.PHONY: test
 test: clean ## display test coverage
 	go test --cover -parallel=1 -v -coverprofile=coverage.out ./...
 	go tool cover -func=coverage.out | sort -rnk3
 	
-PHONY: clean
+.PHONY: clean
 clean: ## clean up environment
 	@rm -rf coverage.out dist/ $(projectname)
 
-PHONY: cover
+.PHONY: cover
 cover: ## display test coverage
 	go test -v -race $(shell go list ./... | grep -v /vendor/) -v -coverprofile=coverage.out
 	go tool cover -func=coverage.out
 
-PHONY: fmt
+.PHONY: fmt
 fmt: ## format go files
 	gofumpt -w .
 	gci write .
 
-PHONY: lint
+.PHONY: lint
 lint: ## lint go files
 	golangci-lint run -c .golang-ci.yml
 
-PHONY: release-test
+.PHONY: vet
+vet: ## run go vet
+	go vet ./...
+
+.PHONY: cyclo
+cyclo: ## check cyclomatic complexity
+	gocyclo -over 15 .
+
+.PHONY: staticcheck
+staticcheck: ## run staticcheck static analysis
+	staticcheck ./...
+
+.PHONY: imports
+imports: ## check and fix import formatting
+	goimports -l -w .
+
+.PHONY: check
+check: fmt vet cyclo staticcheck imports lint ## run all code checks
+	@echo "All code checks passed!"
+
+.PHONY: release-test
 release-test: ## test release
 	goreleaser release --rm-dist --snapshot --clean --skip-publish
 

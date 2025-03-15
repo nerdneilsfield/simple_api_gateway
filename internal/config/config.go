@@ -255,5 +255,5 @@ func GenerateExampleConfigPath(examplePath string) error {
 		return fmt.Errorf("example config directory does not exist")
 	}
 
-	return os.WriteFile(examplePath, []byte(exampleConfig), 0644)
+	return os.WriteFile(examplePath, []byte(exampleConfig), 0o644)
 }
