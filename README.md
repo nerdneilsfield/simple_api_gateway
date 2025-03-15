@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/nerdneilsfield/simple_api_gateway/main/assets/logo.png" alt="Simple API Gateway Logo" width="200">
+  <img src="https://raw.githubusercontent.com/nerdneilsfield/simple_api_gateway/master/assets/logo.png" alt="Simple API Gateway Logo" width="200">
 </p>
 
 # Simple API Gateway
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/nerdneilsfield/simple_api_gateway)](https://goreportcard.com/report/github.com/nerdneilsfield/simple_api_gateway)
 [![GoDoc](https://godoc.org/github.com/nerdneilsfield/simple_api_gateway?status.svg)](https://godoc.org/github.com/nerdneilsfield/simple_api_gateway)
-[![License](https://img.shields.io/github/license/nerdneilsfield/simple_api_gateway)](https://github.com/nerdneilsfield/simple_api_gateway/blob/main/LICENSE)
+[![License](https://img.shields.io/github/license/nerdneilsfield/simple_api_gateway)](https://github.com/nerdneilsfield/simple_api_gateway/blob/master/LICENSE)
 [![Release](https://img.shields.io/github/v/release/nerdneilsfield/simple_api_gateway)](https://github.com/nerdneilsfield/simple_api_gateway/releases/latest)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/nerdneilsfield/simple_api_gateway)](https://golang.org/)
 [![Docker Pulls](https://img.shields.io/docker/pulls/nerdneils/simple_api_gateway)](https://hub.docker.com/r/nerdneils/simple_api_gateway)
