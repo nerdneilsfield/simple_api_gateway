@@ -66,8 +66,28 @@ func ParseConfig(path string) (*Config, error) {
 // ValidateConfig validates the config
 // 验证配置
 func ValidateConfig(config *Config) error {
+	// 验证基本配置
+	if err := validateBasicConfig(config); err != nil {
+		return err
+	}
 
-	if config.Port < 0 && config.Port > 65535 {
+	// 验证缓存配置
+	if err := validateCacheConfig(config); err != nil {
+		return err
+	}
+
+	// 验证路由配置
+	if err := validateRoutes(config); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateBasicConfig validates the basic configuration
+// 验证基本配置
+func validateBasicConfig(config *Config) error {
+	if config.Port < 0 || config.Port > 65535 {
 		logger.Error("Port is not valid", zap.Int("port", config.Port))
 		return fmt.Errorf("port is not valid")
 	}
@@ -77,7 +97,12 @@ func ValidateConfig(config *Config) error {
 		return fmt.Errorf("host is not valid")
 	}
 
-	// Validate cache config / 验证缓存配置
+	return nil
+}
+
+// validateCacheConfig validates the cache configuration
+// 验证缓存配置
+func validateCacheConfig(config *Config) error {
 	if config.Cache.Enabled && config.Cache.UseRedis {
 		if config.Cache.RedisURL == "" {
 			logger.Error("Redis URL is empty but Redis cache is enabled")
@@ -92,6 +117,12 @@ func ValidateConfig(config *Config) error {
 		}
 	}
 
+	return nil
+}
+
+// validateRoutes validates the route configurations
+// 验证路由配置
+func validateRoutes(config *Config) error {
 	if len(config.Routes) == 0 {
 		logger.Error("no routes found in config")
 		return fmt.Errorf("no routes found in config")
@@ -100,47 +131,90 @@ func ValidateConfig(config *Config) error {
 	existingPaths := make(map[string]bool)
 
 	for _, route := range config.Routes {
-		if route.Path == "" {
-			logger.Error("route path is empty", zap.String("path", route.Path))
-			return fmt.Errorf("route path is empty")
-		}
-		if existingPaths[route.Path] {
-			logger.Error("route path is duplicated", zap.String("path", route.Path))
-			return fmt.Errorf("route path is duplicated")
+		if err := validateSingleRoute(route, existingPaths); err != nil {
+			return err
 		}
 		existingPaths[route.Path] = true
+	}
 
-		// 验证后端服务列表
-		if len(route.Backends) == 0 {
-			logger.Error("route backends is empty", zap.String("path", route.Path))
-			return fmt.Errorf("route backends is empty")
+	return nil
+}
+
+// validateSingleRoute validates a single route configuration
+// 验证单个路由配置
+func validateSingleRoute(route Route, existingPaths map[string]bool) error {
+	// 验证路径
+	if err := validateRoutePath(route, existingPaths); err != nil {
+		return err
+	}
+
+	// 验证后端服务
+	if err := validateRouteBackends(route); err != nil {
+		return err
+	}
+
+	// 验证缓存TTL
+	if route.CacheTTL < 0 {
+		logger.Error("route cache TTL is negative", zap.String("path", route.Path), zap.Int("cache_ttl", route.CacheTTL))
+		return fmt.Errorf("route cache TTL is negative")
+	}
+
+	return nil
+}
+
+// validateRoutePath validates the route path
+// 验证路由路径
+func validateRoutePath(route Route, existingPaths map[string]bool) error {
+	if route.Path == "" {
+		logger.Error("route path is empty", zap.String("path", route.Path))
+		return fmt.Errorf("route path is empty")
+	}
+
+	if existingPaths[route.Path] {
+		logger.Error("route path is duplicated", zap.String("path", route.Path))
+		return fmt.Errorf("route path is duplicated")
+	}
+
+	return nil
+}
+
+// validateRouteBackends validates the route backends
+// 验证路由后端服务
+func validateRouteBackends(route Route) error {
+	// 验证后端服务列表
+	if len(route.Backends) == 0 {
+		logger.Error("route backends is empty", zap.String("path", route.Path))
+		return fmt.Errorf("route backends is empty")
+	}
+
+	// 验证每个后端服务URL
+	for _, backend := range route.Backends {
+		if err := validateSingleBackend(route.Path, backend); err != nil {
+			return err
 		}
+	}
 
-		// 验证每个后端服务URL
-		for _, backend := range route.Backends {
-			if backend == "" {
-				logger.Error("route backend is empty", zap.String("path", route.Path))
-				return fmt.Errorf("route backend is empty")
-			}
+	return nil
+}
 
-			if _, err := url.ParseRequestURI(backend); err != nil {
-				logger.Error("route backend is not a valid URL", zap.String("path", route.Path), zap.String("backend", backend))
-				return fmt.Errorf("route backend is not a valid URL")
-			}
+// validateSingleBackend validates a single backend URL
+// 验证单个后端服务URL
+func validateSingleBackend(routePath, backend string) error {
+	if backend == "" {
+		logger.Error("route backend is empty", zap.String("path", routePath))
+		return fmt.Errorf("route backend is empty")
+	}
 
-			if _, err := network.HttpConnect(backend); err != nil {
-				logger.Warn("failed to connect to route backend, but will try during runtime",
-					zap.String("path", route.Path),
-					zap.String("backend", backend),
-					zap.Error(err))
-			}
-		}
+	if _, err := url.ParseRequestURI(backend); err != nil {
+		logger.Error("route backend is not a valid URL", zap.String("path", routePath), zap.String("backend", backend))
+		return fmt.Errorf("route backend is not a valid URL")
+	}
 
-		// Validate cache TTL / 验证缓存TTL
-		if route.CacheTTL < 0 {
-			logger.Error("route cache TTL is negative", zap.String("path", route.Path), zap.Int("cache_ttl", route.CacheTTL))
-			return fmt.Errorf("route cache TTL is negative")
-		}
+	if _, err := network.HttpConnect(backend); err != nil {
+		logger.Warn("failed to connect to route backend, but will try during runtime",
+			zap.String("path", routePath),
+			zap.String("backend", backend),
+			zap.Error(err))
 	}
 
 	return nil

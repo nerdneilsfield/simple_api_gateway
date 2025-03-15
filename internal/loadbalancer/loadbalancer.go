@@ -19,7 +19,7 @@ type BackendStatus struct {
 	FailCount     int             // 连续失败次数 / Consecutive failure count
 	LastFailTime  time.Time       // 最后一次失败时间 / Last failure time
 	ResponseTimes []time.Duration // 最近的响应时间 / Recent response times
-	mutex         sync.RWMutex    // 读写锁 / Read-write lock
+	mutex         *sync.RWMutex   // 读写锁 / Read-write lock
 }
 
 // LoadBalancer 负载均衡器接口
@@ -59,23 +59,26 @@ type RoundRobinLoadBalancer struct {
 // NewRoundRobinLoadBalancer 创建一个新的轮询负载均衡器
 // NewRoundRobinLoadBalancer creates a new round-robin load balancer
 func NewRoundRobinLoadBalancer(backends []string) *RoundRobinLoadBalancer {
-	backendStatus := make([]BackendStatus, len(backends))
-	for i, url := range backends {
-		backendStatus[i] = BackendStatus{
-			URL:           url,
+	lb := &RoundRobinLoadBalancer{
+		backends:     make([]BackendStatus, len(backends)),
+		current:      0,
+		maxFailCount: 3,                // 默认最大失败次数 / Default maximum failure count
+		failTimeout:  30 * time.Second, // 默认失败超时时间 / Default failure timeout
+		mutex:        sync.RWMutex{},
+	}
+
+	for i, backend := range backends {
+		lb.backends[i] = BackendStatus{
+			URL:           backend,
 			Healthy:       true,
 			FailCount:     0,
 			LastFailTime:  time.Time{},
 			ResponseTimes: make([]time.Duration, 0, 10),
+			mutex:         &sync.RWMutex{},
 		}
 	}
 
-	return &RoundRobinLoadBalancer{
-		backends:     backendStatus,
-		current:      0,
-		maxFailCount: 3,                // 默认3次失败后标记为不健康 / Mark as unhealthy after 3 failures by default
-		failTimeout:  30 * time.Second, // 默认30秒后重试 / Retry after 30 seconds by default
-	}
+	return lb
 }
 
 // NextBackend 返回下一个要使用的后端服务
@@ -88,9 +91,14 @@ func (lb *RoundRobinLoadBalancer) NextBackend() string {
 		// 如果没有健康的后端，重置所有后端状态并返回第一个
 		// If no healthy backends, reset all backends and return the first one
 		lb.resetBackends()
+
+		lb.mutex.RLock()
 		if len(lb.backends) > 0 {
-			return lb.backends[0].URL
+			firstBackend := lb.backends[0].URL
+			lb.mutex.RUnlock()
+			return firstBackend
 		}
+		lb.mutex.RUnlock()
 		return ""
 	}
 
@@ -112,15 +120,15 @@ func (lb *RoundRobinLoadBalancer) ReportSuccess(backend string, responseTime tim
 			lb.backends[i].Healthy = true
 			lb.backends[i].FailCount = 0
 
-			// 保存最近10次响应时间
-			// Save the last 10 response times
+			// 保存最近的响应时间，最多保存10个
+			// Save recent response times, up to 10
 			if len(lb.backends[i].ResponseTimes) >= 10 {
 				lb.backends[i].ResponseTimes = lb.backends[i].ResponseTimes[1:]
 			}
 			lb.backends[i].ResponseTimes = append(lb.backends[i].ResponseTimes, responseTime)
 			lb.backends[i].mutex.Unlock()
 
-			logger.Debug("Backend request succeeded",
+			logger.Debug("Backend reported success",
 				zap.String("backend", backend),
 				zap.Duration("responseTime", responseTime))
 			break
@@ -140,21 +148,36 @@ func (lb *RoundRobinLoadBalancer) ReportFailure(backend string) {
 			lb.backends[i].FailCount++
 			lb.backends[i].LastFailTime = time.Now()
 
-			// 如果连续失败次数超过阈值，标记为不健康
-			// If consecutive failures exceed threshold, mark as unhealthy
+			// 如果连续失败次数超过最大失败次数，标记为不健康
+			// If consecutive failures exceed the maximum, mark as unhealthy
 			if lb.backends[i].FailCount >= lb.maxFailCount {
 				lb.backends[i].Healthy = false
 				logger.Warn("Backend marked as unhealthy",
 					zap.String("backend", backend),
 					zap.Int("failCount", lb.backends[i].FailCount))
 			} else {
-				logger.Debug("Backend request failed",
+				logger.Debug("Backend reported failure",
 					zap.String("backend", backend),
 					zap.Int("failCount", lb.backends[i].FailCount))
 			}
 			lb.backends[i].mutex.Unlock()
 			break
 		}
+	}
+
+	// 检查是否所有后端都不健康，如果是，重置所有后端
+	// Check if all backends are unhealthy, if so, reset all backends
+	allUnhealthy := true
+	for i := range lb.backends {
+		lb.backends[i].mutex.RLock()
+		if lb.backends[i].Healthy {
+			allUnhealthy = false
+		}
+		lb.backends[i].mutex.RUnlock()
+	}
+
+	if allUnhealthy {
+		lb.resetBackends()
 	}
 }
 
