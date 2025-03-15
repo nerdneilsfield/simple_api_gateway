@@ -32,11 +32,14 @@ dist/
 # env file
 .env
 
-./simple-api-gateway
-./example_test.toml
+# 确保只忽略根目录下的二进制文件，而不是所有路径中的同名文件
+/simple-api-gateway
+/example_test.toml
 *.log
-./simple_api_gateway
-simple_api_gateway
-simple_api_gateway.exe
-simple_api_gateway.exe~
+/simple_api_gateway
+/simple_api_gateway.exe
+/simple_api_gateway.exe~
+
+# 明确不忽略脚本文件
+!scripts/rc/simple_api_gateway
 

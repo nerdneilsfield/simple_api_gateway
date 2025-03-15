@@ -10,6 +10,7 @@ env:
 
 builds:
   -
+    id: simple_api_gateway
     binary: simple_api_gateway
     ldflags:
       - -s -w
@@ -39,23 +40,56 @@ builds:
         env:
           - CGO_ENABLED=0
       - goos: linux
+        goarch: amd64
         ldflags:
           - -s -w -extldflags "-static"
           - -X main.version={{ .Version }}
           - -X main.buildTime={{ .Date }}
           - -X main.gitCommit={{ .FullCommit }}
+      - goos: linux
+        goarch: arm64
+        ldflags:
+          - -s -w -extldflags "-static"
+          - -X main.version={{ .Version }}
+          - -X main.buildTime={{ .Date }}
+          - -X main.gitCommit={{ .FullCommit }}
+      - goos: linux
+        goarch: "386"
+        ldflags:
+          - -s -w -extldflags "-static"
+          - -X main.version={{ .Version }}
+          - -X main.buildTime={{ .Date }}
+          - -X main.gitCommit={{ .FullCommit }}
+      - goos: windows
+        goarch: amd64
+      - goos: windows
+        goarch: "386"
+      - goos: windows
+        goarch: arm64
+      - goos: freebsd
+        goarch: amd64
+      - goos: freebsd
+        goarch: "386"
+      - goos: freebsd
+        goarch: arm64
 
 
 archives:
   -
-    builds:
-      - simple_api_gateway
+    id: simple_api_gateway_archives
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: ["tar.gz"]
     format_overrides:
       - goos: windows
-        format: zip
+        formats: ["zip"]
+    ids:
+      - simple_api_gateway
 
 nfpms:
-  - builds:
+  - 
+    id: simple_api_gateway_packages
+    package_name: simple_api_gateway
+    ids:
       - simple_api_gateway
     vendor: nerdneilsfield
     homepage:  https://github.com/nerdneilsfield/simple_api_gateway
@@ -76,7 +110,7 @@ nfpms:
         dst: /usr/lib/systemd/system/simple-api-gateway@.service
         type: config
         packager: rpm
-      - src: ./scripts/rc/simple_api_gateway
+      - src: scripts/rc/simple_api_gateway
         dst: /etc/init.d/simple_api_gateway
         type: config
         packager: apk
