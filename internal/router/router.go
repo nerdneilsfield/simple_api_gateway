@@ -134,6 +134,133 @@ func getLoadBalancer(route config.Route) loadbalancer.LoadBalancer {
 	return lb
 }
 
+// sendProxyRequest sends the request to the backend and returns the response
+// 向后端发送请求并返回响应
+func sendProxyRequest(c *fiber.Ctx, targetFullURL string, route config.Route) (int, []byte, map[string][]string, error) {
+	// Create proxy request
+	// 创建代理请求
+	req := fiber.AcquireAgent()
+	defer fiber.ReleaseAgent(req)
+
+	// Set method and URL
+	// 设置方法和URL
+	req.Request().SetRequestURI(targetFullURL)
+	req.Request().Header.SetMethod(string(c.Method()))
+
+	// Copy all headers
+	// 复制所有头部
+	c.Request().Header.VisitAll(func(key, value []byte) {
+		req.Request().Header.SetBytesKV(key, value)
+	})
+
+	if route.UaClient != "" {
+		req.Request().Header.Set("User-Agent", route.UaClient)
+	}
+
+	// Add request body
+	// 添加请求体
+	if len(c.Body()) > 0 {
+		req.Request().SetBody(c.Body())
+	}
+
+	// 创建响应对象来存储响应
+	// Create response object to store the response
+	resp := fiber.AcquireResponse()
+	defer fiber.ReleaseResponse(resp)
+	req.SetResponse(resp)
+
+	// Send request
+	// 发送请求
+	if err := req.Parse(); err != nil {
+		return 0, nil, nil, err
+	}
+
+	// 获取响应
+	// Get response
+	statusCode, body, errs := req.Bytes()
+	if len(errs) > 0 {
+		return 0, nil, nil, errs[0]
+	}
+
+	// 获取响应头
+	// Get response headers
+	headers := make(map[string][]string)
+	resp.Header.VisitAll(func(key, value []byte) {
+		k := string(key)
+		v := string(value)
+		headers[k] = append(headers[k], v)
+	})
+
+	return statusCode, body, headers, nil
+}
+
+// handleBackendRequest processes the request to the backend server
+// 处理后端服务器请求
+func handleBackendRequest(c *fiber.Ctx, lb loadbalancer.LoadBalancer, route config.Route) (int, []byte, map[string][]string, error) {
+	// 记录开始时间，用于计算响应时间
+	// Record start time for response time calculation
+	startTime := time.Now()
+
+	// 获取下一个后端
+	// Get next backend
+	backendURL := lb.NextBackend()
+	if backendURL == "" {
+		return 503, nil, nil, c.Status(503).SendString("No backend servers available")
+	}
+
+	// 构建代理请求
+	// Build proxy request
+	targetFullURL, err := buildTargetURL(c, backendURL, route)
+	if err != nil {
+		logger.Error("Error parsing backend URL", zap.String("backend", backendURL), zap.Error(err))
+		return 500, nil, nil, c.Status(500).SendString("Error parsing backend URL")
+	}
+
+	// 创建并发送请求
+	// Create and send request
+	statusCode, body, headers, err := sendProxyRequest(c, targetFullURL, route)
+	if err != nil {
+		lb.ReportFailure(backendURL)
+		logger.Error("Backend request failed",
+			zap.String("backend", backendURL),
+			zap.Error(err))
+		return 500, nil, nil, c.Status(500).SendString(fmt.Sprintf("Error: %v", err))
+	}
+
+	// 请求成功，报告成功
+	// Request succeeded, report success
+	responseTime := time.Since(startTime)
+	lb.ReportSuccess(backendURL, responseTime)
+	logger.Debug("Backend request succeeded",
+		zap.String("backend", backendURL),
+		zap.Int("statusCode", statusCode),
+		zap.Duration("responseTime", responseTime))
+
+	return statusCode, body, headers, nil
+}
+
+// buildTargetURL constructs the target URL for the proxy request
+// 构建代理请求的目标URL
+func buildTargetURL(c *fiber.Ctx, backendURL string, route config.Route) (string, error) {
+	// 解析后端URL
+	// Parse backend URL
+	targetURL, err := url.Parse(backendURL)
+	if err != nil {
+		return "", err
+	}
+
+	// Build target URL
+	// 构建目标URL
+	trimmedPath := c.Path()[len(route.Path):]
+	queryString := string(c.Request().URI().QueryString())
+	targetFullURL := targetURL.String() + trimmedPath
+	if queryString != "" {
+		targetFullURL += "?" + queryString
+	}
+
+	return targetFullURL, nil
+}
+
 // CreateNewHandler creates a new request handler for the given route
 // 为给定的路由创建新的请求处理程序
 func CreateNewHandler(route config.Route, globalCacheEnabled bool) fiber.Handler {
@@ -167,7 +294,7 @@ func CreateNewHandler(route config.Route, globalCacheEnabled bool) fiber.Handler
 
 		// 处理后端请求
 		// Handle backend request
-		statusCode, body, err := handleBackendRequest(c, lb, route)
+		statusCode, body, headers, err := handleBackendRequest(c, lb, route)
 		if err != nil {
 			return err
 		}
@@ -187,9 +314,20 @@ func CreateNewHandler(route config.Route, globalCacheEnabled bool) fiber.Handler
 			zap.Int("statusCode", statusCode),
 			zap.Duration("totalTime", requestDuration))
 
-		// 设置响应
-		// Set response
+		// 设置响应状态码
+		// Set response status code
 		c.Status(statusCode)
+
+		// 复制响应头
+		// Copy response headers
+		for key, values := range headers {
+			for _, value := range values {
+				c.Response().Header.Add(key, value)
+			}
+		}
+
+		// 发送响应体
+		// Send response body
 		return c.Send(body)
 	}
 }
@@ -241,118 +379,6 @@ func tryGetFromCache(c *fiber.Ctx, route config.Route, requestPath, requestMetho
 		zap.Error(err))
 
 	return nil
-}
-
-// handleBackendRequest processes the request to the backend server
-// 处理后端服务器请求
-func handleBackendRequest(c *fiber.Ctx, lb loadbalancer.LoadBalancer, route config.Route) (int, []byte, error) {
-	// 记录开始时间，用于计算响应时间
-	// Record start time for response time calculation
-	startTime := time.Now()
-
-	// 获取下一个后端
-	// Get next backend
-	backendURL := lb.NextBackend()
-	if backendURL == "" {
-		return 503, nil, c.Status(503).SendString("No backend servers available")
-	}
-
-	// 构建代理请求
-	// Build proxy request
-	targetFullURL, err := buildTargetURL(c, backendURL, route)
-	if err != nil {
-		logger.Error("Error parsing backend URL", zap.String("backend", backendURL), zap.Error(err))
-		return 500, nil, c.Status(500).SendString("Error parsing backend URL")
-	}
-
-	// 创建并发送请求
-	// Create and send request
-	statusCode, body, err := sendProxyRequest(c, targetFullURL, route)
-	if err != nil {
-		lb.ReportFailure(backendURL)
-		logger.Error("Backend request failed",
-			zap.String("backend", backendURL),
-			zap.Error(err))
-		return 500, nil, c.Status(500).SendString(fmt.Sprintf("Error: %v", err))
-	}
-
-	// 请求成功，报告成功
-	// Request succeeded, report success
-	responseTime := time.Since(startTime)
-	lb.ReportSuccess(backendURL, responseTime)
-	logger.Debug("Backend request succeeded",
-		zap.String("backend", backendURL),
-		zap.Int("statusCode", statusCode),
-		zap.Duration("responseTime", responseTime))
-
-	return statusCode, body, nil
-}
-
-// buildTargetURL constructs the target URL for the proxy request
-// 构建代理请求的目标URL
-func buildTargetURL(c *fiber.Ctx, backendURL string, route config.Route) (string, error) {
-	// 解析后端URL
-	// Parse backend URL
-	targetURL, err := url.Parse(backendURL)
-	if err != nil {
-		return "", err
-	}
-
-	// Build target URL
-	// 构建目标URL
-	trimmedPath := c.Path()[len(route.Path):]
-	queryString := string(c.Request().URI().QueryString())
-	targetFullURL := targetURL.String() + trimmedPath
-	if queryString != "" {
-		targetFullURL += "?" + queryString
-	}
-
-	return targetFullURL, nil
-}
-
-// sendProxyRequest sends the request to the backend and returns the response
-// 向后端发送请求并返回响应
-func sendProxyRequest(c *fiber.Ctx, targetFullURL string, route config.Route) (int, []byte, error) {
-	// Create proxy request
-	// 创建代理请求
-	req := fiber.AcquireAgent()
-	defer fiber.ReleaseAgent(req)
-
-	// Set method and URL
-	// 设置方法和URL
-	req.Request().SetRequestURI(targetFullURL)
-	req.Request().Header.SetMethod(string(c.Method()))
-
-	// Copy all headers
-	// 复制所有头部
-	c.Request().Header.VisitAll(func(key, value []byte) {
-		req.Request().Header.SetBytesKV(key, value)
-	})
-
-	if route.UaClient != "" {
-		req.Request().Header.Set("User-Agent", route.UaClient)
-	}
-
-	// Add request body
-	// 添加请求体
-	if len(c.Body()) > 0 {
-		req.Request().SetBody(c.Body())
-	}
-
-	// Send request
-	// 发送请求
-	if err := req.Parse(); err != nil {
-		return 0, nil, err
-	}
-
-	// Send request and get response
-	// 发送请求并获取响应
-	statusCode, body, errs := req.Bytes()
-	if len(errs) > 0 {
-		return 0, nil, errs[0]
-	}
-
-	return statusCode, body, nil
 }
 
 // tryCacheResponse attempts to cache a successful response
