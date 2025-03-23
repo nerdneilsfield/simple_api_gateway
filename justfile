@@ -5,6 +5,19 @@ default:
     @just --list
 
 # 构建 Golang 二进制文件
+[windows]
+build:
+    go build -ldflags "-X main.version=$(git describe --abbrev=0 --tags)" -o {{projectname}}.exe
+
+[linux]
+build:
+    go build -ldflags "-X main.version=$(git describe --abbrev=0 --tags)" -o {{projectname}}
+
+[macos]
+build:
+    go build -ldflags "-X main.version=$(git describe --abbrev=0 --tags)" -o {{projectname}}
+
+[unix]
 build:
     go build -ldflags "-X main.version=$(git describe --abbrev=0 --tags)" -o {{projectname}}
 

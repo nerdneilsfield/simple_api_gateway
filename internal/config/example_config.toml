@@ -24,6 +24,11 @@ cache_paths = [                             # Relative paths that can be cached 
   "/product",                               # Only cache paths starting with /product / 只缓存以 /product 开头的路径
 ]
 
+[route.custom_headers]                      # Custom headers to add to requests / 添加到请求中的自定义头部
+X-Custom-Header = "custom-value"            # Example custom header / 示例自定义头部
+X-API-Key = "your-api-key"                  # Example API key header / 示例API密钥头部
+X-Request-ID = "request-123"                # Example request ID header / 示例请求ID头部
+
 [[route]]
 path = "/hello2"                            # Route path / 路由路径
 backends = [                                # Backend service URLs / 后端服务URL列表
@@ -33,3 +38,7 @@ backends = [                                # Backend service URLs / 后端服�
 ua_client = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"  # User-Agent / 用户代理
 cache_ttl = 0                               # Cache TTL in seconds (0 = no cache) / 缓存有效期（秒，0表示不缓存）
 cache_enable = false                        # Disable cache for this route / 为此路由禁用缓存
+
+[route.custom_headers]                      # Custom headers to add to requests / 添加到请求中的自定义头部
+X-Service-Name = "service-2"                # Example service name header / 示例服务名称头部
+X-Environment = "production"                # Example environment header / 示例环境头部

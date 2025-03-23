@@ -22,6 +22,11 @@ cache_paths = [
   "/user",
   "/product",
 ]
+[route.custom_headers]                      # Custom headers to add to requests / 添加到请求中的自定义头部
+X-Custom-Header = "custom-value"            # Example custom header / 示例自定义头部
+X-API-Key = "your-api-key"                  # Example API key header / 示例API密钥头部
+X-Request-ID = "request-123"                # Example request ID header / 示例请求ID头部
+
 
 [[route]]
 path = "/hello2"
@@ -32,3 +37,8 @@ backends = [
 ua_client = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 cache_ttl = 0
 cache_enable = false
+
+[route.custom_headers]                      # Custom headers to add to requests / 添加到请求中的自定义头部
+X-Custom-Header = "custom-value"            # Example custom header / 示例自定义头部
+X-API-Key = "your-api-key"                  # Example API key header / 示例API密钥头部
+X-Request-ID = "request-123"                # Example request ID header / 示例请求ID头部

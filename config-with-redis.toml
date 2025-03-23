@@ -24,3 +24,7 @@ cache_paths = [                             # Relative paths that can be cached 
   "/v1/products",                           # Only cache paths starting with /v1/products / 只缓存以 /v1/products 开头的路径
   "/v2/static",                             # Only cache paths starting with /v2/static / 只缓存以 /v2/static 开头的路径
 ] 
+[route.custom_headers]                      # Custom headers to add to requests / 添加到请求中的自定义头部
+X-Custom-Header = "custom-value"            # Example custom header / 示例自定义头部
+X-API-Key = "your-api-key"                  # Example API key header / 示例API密钥头部
+X-Request-ID = "request-123"                # Example request ID header / 示例请求ID头部

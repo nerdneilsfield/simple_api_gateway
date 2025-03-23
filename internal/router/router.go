@@ -157,6 +157,12 @@ func sendProxyRequest(c *fiber.Ctx, targetFullURL string, route config.Route) (i
 		req.Request().Header.Set("User-Agent", route.UaClient)
 	}
 
+	// Add custom headers
+	// 添加自定义头部
+	for key, value := range route.CustomHeaders {
+		req.Request().Header.Set(key, value)
+	}
+
 	// Add request body
 	// 添加请求体
 	if len(c.Body()) > 0 {

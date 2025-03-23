@@ -10,8 +10,22 @@ redis_db = 0                                # Redis database number / Redis数�
 redis_prefix = "api_gateway:"               # Redis key prefix / Redis键前缀
 
 [[route]]
-path = "/cloudflare"                        # Route path / 路由路径
-backend = "https://api.cloudflare.com"      # Backend service URL / 后端服务URL
+path = "/github"                        # Route path / 路由路径
+backends = ["https://api.github.com"]      # Backend service URL / 后端服务URL
 ua_client = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"  # User-Agent / 用户代理
 cache_ttl = 300                             # Cache TTL in seconds (0 = no cache) / 缓存有效期（秒，0表示不缓存）
 cache_enable = true                         # Enable cache for this route / 为此路由启用缓存
+cache_paths = [
+  "/repos",           # 仓库信息
+  "/users",           # 用户信息
+  "/orgs",           # 组织信息
+  "/gists/public",   # 公开的 gist
+  "/emojis",         # emoji 列表
+  "/gitignore/templates", # .gitignore 模板
+  "/licenses",       # 开源许可证信息
+  "/meta",           # GitHub 元数据
+]
+
+
+[route.custom_headers]                      # Custom headers to add to requests / 添加到请求中的自定义头部
+Authorization = "Bearer ghp_your_personal_access_token"

@@ -35,12 +35,13 @@ type Cache struct {
 }
 
 type Route struct {
-	Path        string   `toml:"path"`         // Route path / 路由路径
-	Backends    []string `toml:"backends"`     // Backend service URLs / 后端服务URL列表
-	UaClient    string   `toml:"ua_client"`    // User-Agent / 用户代理
-	CacheTTL    int      `toml:"cache_ttl"`    // Cache TTL in seconds (0 = no cache) / 缓存时间，单位为秒，0表示不缓存
-	CacheEnable bool     `toml:"cache_enable"` // Enable cache for this route / 是否启用缓存，默认跟随全局设置
-	CachePaths  []string `toml:"cache_paths"`  // Relative paths that can be cached / 可以被缓存的相对路径列表
+	Path          string            `toml:"path"`           // Route path / 路由路径
+	Backends      []string          `toml:"backends"`       // Backend service URLs / 后端服务URL列表
+	UaClient      string            `toml:"ua_client"`      // User-Agent / 用户代理
+	CacheTTL      int               `toml:"cache_ttl"`      // Cache TTL in seconds (0 = no cache) / 缓存时间，单位为秒，0表示不缓存
+	CacheEnable   bool              `toml:"cache_enable"`   // Enable cache for this route / 是否启用缓存，默认跟随全局设置
+	CachePaths    []string          `toml:"cache_paths"`    // Relative paths that can be cached / 可以被缓存的相对路径列表
+	CustomHeaders map[string]string `toml:"custom_headers"` // Custom headers to add to requests / 添加到请求中的自定义头部
 }
 
 // ParseConfig parses the config file at the given path
@@ -59,6 +60,8 @@ func ParseConfig(path string) (*Config, error) {
 		logger.SetSaveToFile(true)
 		logger.Reset()
 	}
+
+	logger.Debug("config parsed", zap.Any("config", config))
 
 	return &config, nil
 }
