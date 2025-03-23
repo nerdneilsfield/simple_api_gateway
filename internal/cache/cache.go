@@ -2,7 +2,9 @@ package cache
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,8 +19,8 @@ var logger = loggerPkg.GetLogger()
 // Cache interface defines methods for cache operations
 // 缓存接口定义了缓存操作的方法
 type Cache interface {
-	Get(key string) ([]byte, error)
-	Set(key string, value []byte, ttl int) error
+	Get(key string) (*CacheItem, error)
+	Set(key string, value *CacheItem, ttl int) error
 	Delete(key string) error
 	Close() error
 }
@@ -30,7 +32,7 @@ type MemoryCache struct {
 }
 
 type memoryCacheItem struct {
-	value      []byte
+	value      *CacheItem
 	expiration time.Time
 }
 
@@ -73,7 +75,7 @@ func (c *MemoryCache) cleanExpired() {
 
 // Get retrieves a value from the cache by key
 // 通过键从缓存中获取值
-func (c *MemoryCache) Get(key string) ([]byte, error) {
+func (c *MemoryCache) Get(key string) (*CacheItem, error) {
 	logger.Debug("Memory cache: attempting to get item", zap.String("key", key))
 	value, ok := c.cache.Load(key)
 	if !ok {
@@ -93,21 +95,24 @@ func (c *MemoryCache) Get(key string) ([]byte, error) {
 		return nil, errors.New("key expired")
 	}
 
-	logger.Debug("Memory cache: item retrieved successfully", zap.String("key", key), zap.Int("size", len(item.value)))
+	logger.Debug("Memory cache: item retrieved successfully", zap.String("key", key), zap.Int("size", len(item.value.Body)))
 	return item.value, nil
 }
 
 // Set stores a value in the cache with the given key and TTL
 // 将值存储在缓存中，使用给定的键和TTL
-func (c *MemoryCache) Set(key string, value []byte, ttl int) error {
+func (c *MemoryCache) Set(key string, value *CacheItem, ttl int) error {
 	var expiration time.Time
 	if ttl > 0 {
 		expiration = time.Now().Add(time.Duration(ttl) * time.Second)
 	}
 
+	// 过滤头部
+	value.Headers = FilterHeaders(value.Headers)
+
 	logger.Debug("Memory cache: storing item",
 		zap.String("key", key),
-		zap.Int("size", len(value)),
+		zap.Int("size", len(value.Body)),
 		zap.Int("ttl", ttl),
 		zap.Time("expiration", expiration))
 
@@ -172,7 +177,7 @@ func NewRedisCache(config config.Cache) (*RedisCache, error) {
 
 // Get retrieves a value from Redis by key
 // 通过键从Redis获取值
-func (c *RedisCache) Get(key string) ([]byte, error) {
+func (c *RedisCache) Get(key string) (*CacheItem, error) {
 	fullKey := c.prefix + key
 	logger.Debug("Redis cache: attempting to get item", zap.String("key", fullKey))
 
@@ -186,26 +191,39 @@ func (c *RedisCache) Get(key string) ([]byte, error) {
 		return nil, err
 	}
 
-	logger.Debug("Redis cache: item retrieved successfully", zap.String("key", fullKey), zap.Int("size", len(value)))
-	return value, nil
+	var item CacheItem
+	if err := json.Unmarshal(value, &item); err != nil {
+		return nil, err
+	}
+
+	logger.Debug("Redis cache: item retrieved successfully", zap.String("key", fullKey), zap.Int("size", len(item.Body)))
+	return &item, nil
 }
 
 // Set stores a value in Redis with the given key and TTL
 // 将值存储在Redis中，使用给定的键和TTL
-func (c *RedisCache) Set(key string, value []byte, ttl int) error {
+func (c *RedisCache) Set(key string, value *CacheItem, ttl int) error {
 	fullKey := c.prefix + key
 	var expiration time.Duration
 	if ttl > 0 {
 		expiration = time.Duration(ttl) * time.Second
 	}
 
+	// 过滤头部
+	value.Headers = FilterHeaders(value.Headers)
+
+	data, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+
 	logger.Debug("Redis cache: storing item",
 		zap.String("key", fullKey),
-		zap.Int("size", len(value)),
+		zap.Int("size", len(value.Body)),
 		zap.Int("ttl", ttl),
 		zap.Duration("expiration", expiration))
 
-	err := c.client.Set(c.ctx, fullKey, value, expiration).Err()
+	err = c.client.Set(c.ctx, fullKey, data, expiration).Err()
 	if err != nil {
 		logger.Debug("Redis cache: error setting item", zap.String("key", fullKey), zap.Error(err))
 	}
@@ -270,21 +288,21 @@ func NewCacheManager(config config.Cache) (*CacheManager, error) {
 
 // Get retrieves a value from the cache by key
 // 通过键从缓存获取值
-func (m *CacheManager) Get(key string) ([]byte, error) {
+func (m *CacheManager) Get(key string) (*CacheItem, error) {
 	logger.Debug("Cache manager: get operation", zap.String("key", key))
 	value, err := m.cache.Get(key)
 	if err != nil {
 		logger.Debug("Cache manager: get operation failed", zap.String("key", key), zap.Error(err))
 		return nil, err
 	}
-	logger.Debug("Cache manager: get operation succeeded", zap.String("key", key), zap.Int("size", len(value)))
+	logger.Debug("Cache manager: get operation succeeded", zap.String("key", key), zap.Int("size", len(value.Body)))
 	return value, nil
 }
 
 // Set stores a value in the cache with the given key and TTL
 // 将值存储在缓存中，使用给定的键和TTL
-func (m *CacheManager) Set(key string, value []byte, ttl int) error {
-	logger.Debug("Cache manager: set operation", zap.String("key", key), zap.Int("size", len(value)), zap.Int("ttl", ttl))
+func (m *CacheManager) Set(key string, value *CacheItem, ttl int) error {
+	logger.Debug("Cache manager: set operation", zap.String("key", key), zap.Int("size", len(value.Body)), zap.Int("ttl", ttl))
 	err := m.cache.Set(key, value, ttl)
 	if err != nil {
 		logger.Debug("Cache manager: set operation failed", zap.String("key", key), zap.Error(err))
@@ -307,4 +325,44 @@ func (m *CacheManager) Delete(key string) error {
 // 清理缓存使用的资源
 func (m *CacheManager) Close() error {
 	return m.cache.Close()
+}
+
+// 定义不需要缓存的头部列表
+var excludedHeaders = map[string]bool{
+	"Date":              true,
+	"Connection":        true,
+	"Transfer-Encoding": true,
+	"Cf-Ray":            true,
+	"Cf-Cache-Status":   true,
+	"Cf-Connecting-Ip":  true,
+	"Cf-Worker":         true,
+	"X-Real-Ip":         true,
+	"X-Forwarded-For":   true,
+	"X-Forwarded-Proto": true,
+	"X-Request-Id":      true,
+	"X-Request-Start":   true,
+	"X-Response-Time":   true,
+	"X-Runtime":         true,
+	"Server":            true,
+	"Via":               true,
+	"Alt-Svc":           true,
+	"Content-Length":    true, // 因为我们可能会修改内容
+}
+
+// FilterHeaders 过滤不需要缓存的响应头
+func FilterHeaders(headers map[string][]string) map[string][]string {
+	filteredHeaders := make(map[string][]string)
+	for key, values := range headers {
+		// 检查头部名称是否在排除列表中（不区分大小写）
+		if !excludedHeaders[strings.ToTitle(key)] {
+			filteredHeaders[key] = values
+		}
+	}
+	return filteredHeaders
+}
+
+// CacheItem 结构体保持不变，但在存储时使用过滤后的头部
+type CacheItem struct {
+	Body    []byte              `json:"body"`
+	Headers map[string][]string `json:"headers"`
 }

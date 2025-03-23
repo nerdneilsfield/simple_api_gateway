@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -308,7 +309,7 @@ func CreateNewHandler(route config.Route, globalCacheEnabled bool) fiber.Handler
 		// 如果需要，缓存响应
 		// Cache response if needed
 		if useCache {
-			tryCacheResponse(c, route, requestPath, requestMethod, statusCode, body)
+			tryCacheResponse(c, route, requestPath, requestMethod, statusCode, body, headers)
 		}
 
 		// 记录请求总处理时间
@@ -361,7 +362,7 @@ func tryGetFromCache(c *fiber.Ctx, route config.Route, requestPath, requestMetho
 		zap.String("key", cacheKey))
 
 	cacheStartTime := time.Now()
-	cachedResponse, err := cacheManager.Get(cacheKey)
+	cachedItem, err := cacheManager.Get(cacheKey)
 	cacheLookupDuration := time.Since(cacheStartTime)
 
 	if err == nil {
@@ -372,9 +373,21 @@ func tryGetFromCache(c *fiber.Ctx, route config.Route, requestPath, requestMetho
 			zap.String("method", requestMethod),
 			zap.String("key", cacheKey),
 			zap.Duration("lookupTime", cacheLookupDuration),
-			zap.Int("responseSize", len(cachedResponse)))
+			zap.Int("responseSize", len(cachedItem.Body)))
 
-		return cachedResponse
+		// 设置响应头
+		for key, values := range cachedItem.Headers {
+			for _, value := range values {
+				c.Response().Header.Add(key, value)
+			}
+		}
+
+		// 重新设置 Content-Length
+		bodyLen := len(cachedItem.Body)
+		c.Response().Header.Set("Content-Length", strconv.Itoa(bodyLen))
+
+		// 返回响应体
+		return cachedItem.Body
 	}
 
 	logger.Debug("Cache miss",
@@ -389,7 +402,7 @@ func tryGetFromCache(c *fiber.Ctx, route config.Route, requestPath, requestMetho
 
 // tryCacheResponse attempts to cache a successful response
 // 尝试缓存成功的响应
-func tryCacheResponse(c *fiber.Ctx, route config.Route, requestPath, requestMethod string, statusCode int, body []byte) {
+func tryCacheResponse(c *fiber.Ctx, route config.Route, requestPath, requestMethod string, statusCode int, body []byte, headers map[string][]string) {
 	// If successful response and should cache, cache the response
 	// 如果是成功的响应并且应该缓存，则缓存响应
 	if statusCode >= 200 && statusCode < 300 {
@@ -403,7 +416,11 @@ func tryCacheResponse(c *fiber.Ctx, route config.Route, requestPath, requestMeth
 			zap.Int("ttl", route.CacheTTL))
 
 		cacheStartTime := time.Now()
-		if err := cacheManager.Set(cacheKey, body, route.CacheTTL); err != nil {
+		cacheItem := &cache.CacheItem{
+			Body:    body,
+			Headers: headers,
+		}
+		if err := cacheManager.Set(cacheKey, cacheItem, route.CacheTTL); err != nil {
 			logger.Error("Failed to cache response",
 				zap.String("path", requestPath),
 				zap.String("key", cacheKey),
