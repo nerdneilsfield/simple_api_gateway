@@ -130,7 +130,7 @@ dockers:
 - image_templates:
   - 'nerdneils/{{.ProjectName}}:{{ .Tag }}-amd64'
   - 'ghcr.io/nerdneilsfield/{{.ProjectName}}:{{ .Tag }}-amd64'
-  dockerfile: Dockerfile
+  dockerfile: Dockerfile.goreleaser
   use: buildx
   build_flag_templates:
   - "--pull"
@@ -146,11 +146,11 @@ dockers:
   - "--platform=linux/amd64"
   extra_files:
     - example_config.toml
-    - .qoder/repowiki/zh/**
+    - .qoder/repowiki/zh
 - image_templates:
   - 'nerdneils/{{.ProjectName}}:{{ .Tag }}-arm64'
   - 'ghcr.io/nerdneilsfield/{{.ProjectName}}:{{ .Tag }}-arm64'
-  dockerfile:  Dockerfile
+  dockerfile:  Dockerfile.goreleaser
   use: buildx
   build_flag_templates:
   - "--pull"
@@ -168,7 +168,7 @@ dockers:
   goarch: arm64
   extra_files:
     - example_config.toml
-    - .qoder/repowiki/zh/**
+    - .qoder/repowiki/zh
 
 docker_manifests:
 - name_template: 'nerdneils/{{.ProjectName}}:{{ .Tag }}'

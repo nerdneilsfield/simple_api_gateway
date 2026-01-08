@@ -1,0 +1,11 @@
+FROM alpine:3.20
+
+ARG TARGETPLATFORM
+
+WORKDIR /app
+COPY ${TARGETPLATFORM}/simple_api_gateway /app/simple_api_gateway
+COPY example_config.toml /app/config.toml
+COPY .qoder/repowiki/zh /app/.qoder/repowiki/zh
+
+EXPOSE 8080
+ENTRYPOINT ["/app/simple_api_gateway", "serve", "/app/config.toml"]
