@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 	loggerPkg "github.com/nerdneilsfield/shlogin/pkg/logger"
@@ -42,6 +43,8 @@ type Route struct {
 	CacheEnable   bool              `toml:"cache_enable"`   // Enable cache for this route / 是否启用缓存，默认跟随全局设置
 	CachePaths    []string          `toml:"cache_paths"`    // Relative paths that can be cached / 可以被缓存的相对路径列表
 	CustomHeaders map[string]string `toml:"custom_headers"` // Custom headers to add to requests / 添加到请求中的自定义头部
+	RewriteFrom   string            `toml:"rewrite_from"`   // Path prefix to rewrite from / 要重写的路径前缀
+	RewriteTo     string            `toml:"rewrite_to"`     // Path prefix to rewrite to / 重写到的路径前缀
 }
 
 // ParseConfig parses the config file at the given path
@@ -162,6 +165,11 @@ func validateSingleRoute(route Route, existingPaths map[string]bool) error {
 		return fmt.Errorf("route cache TTL is negative")
 	}
 
+	// 验证重写规则
+	if err := validateRewriteRule(route); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -171,6 +179,13 @@ func validateRoutePath(route Route, existingPaths map[string]bool) error {
 	if route.Path == "" {
 		logger.Error("route path is empty", zap.String("path", route.Path))
 		return fmt.Errorf("route path is empty")
+	}
+
+	// Validate that route path starts with /
+	// 验证路由路径以 / 开头
+	if !strings.HasPrefix(route.Path, "/") {
+		logger.Error("route path must start with /", zap.String("path", route.Path))
+		return fmt.Errorf("route path must start with /")
 	}
 
 	if existingPaths[route.Path] {
@@ -218,6 +233,42 @@ func validateSingleBackend(routePath, backend string) error {
 			zap.String("path", routePath),
 			zap.String("backend", backend),
 			zap.Error(err))
+	}
+
+	return nil
+}
+
+// validateRewriteRule validates the rewrite rule configuration
+// 验证重写规则配置
+func validateRewriteRule(route Route) error {
+	// Rewrite rule is only active when both fields are non-empty
+	// 重写规则仅在两个字段都非空时才生效
+	hasRewriteFrom := route.RewriteFrom != ""
+	hasRewriteTo := route.RewriteTo != ""
+
+	if hasRewriteFrom != hasRewriteTo {
+		logger.Error("rewrite_from and rewrite_to must both be specified or both be empty",
+			zap.String("path", route.Path),
+			zap.String("rewrite_from", route.RewriteFrom),
+			zap.String("rewrite_to", route.RewriteTo))
+		return fmt.Errorf("rewrite_from and rewrite_to must both be specified or both be empty")
+	}
+
+	// Validate that rewrite paths start with /
+	// 验证重写路径以 / 开头
+	if hasRewriteFrom {
+		if !strings.HasPrefix(route.RewriteFrom, "/") {
+			logger.Error("rewrite_from must start with /",
+				zap.String("path", route.Path),
+				zap.String("rewrite_from", route.RewriteFrom))
+			return fmt.Errorf("rewrite_from must start with /")
+		}
+		if !strings.HasPrefix(route.RewriteTo, "/") {
+			logger.Error("rewrite_to must start with /",
+				zap.String("path", route.Path),
+				zap.String("rewrite_to", route.RewriteTo))
+			return fmt.Errorf("rewrite_to must start with /")
+		}
 	}
 
 	return nil

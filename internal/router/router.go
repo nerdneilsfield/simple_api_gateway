@@ -259,6 +259,31 @@ func buildTargetURL(c *fiber.Ctx, backendURL string, route config.Route) (string
 	// Build target URL
 	// 构建目标URL
 	trimmedPath := c.Path()[len(route.Path):]
+
+	// Normalize trimmedPath so it always joins cleanly with the backend URL.
+	// 规范化trimmedPath，确保能正确拼接到后端URL。
+	if trimmedPath != "" && !strings.HasPrefix(trimmedPath, "/") {
+		trimmedPath = "/" + trimmedPath
+	}
+
+	// Apply rewrite rule if configured
+	// 如果配置了重写规则，则应用重写
+	if route.RewriteFrom != "" && route.RewriteTo != "" {
+		// Check if the path portion starts with rewrite_from
+		// 检查路径部分是否以 rewrite_from 开头
+		if strings.HasPrefix(trimmedPath, route.RewriteFrom) {
+			// Replace the prefix
+			// 替换前缀
+			trimmedPath = route.RewriteTo + trimmedPath[len(route.RewriteFrom):]
+			logger.Debug("Applied path rewrite",
+				zap.String("route", route.Path),
+				zap.String("originalPath", c.Path()),
+				zap.String("trimmedPath", trimmedPath),
+				zap.String("rewrite_from", route.RewriteFrom),
+				zap.String("rewrite_to", route.RewriteTo))
+		}
+	}
+
 	queryString := string(c.Request().URI().QueryString())
 	targetFullURL := targetURL.String() + trimmedPath
 	if queryString != "" {

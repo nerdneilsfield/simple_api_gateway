@@ -42,3 +42,15 @@ cache_enable = false
 X-Custom-Header = "custom-value"            # Example custom header / 示例自定义头部
 X-API-Key = "your-api-key"                  # Example API key header / 示例API密钥头部
 X-Request-ID = "request-123"                # Example request ID header / 示例请求ID头部
+
+[[route]]
+path = "/api"                               # Route path / 路由路径
+backends = [                                # Backend service URLs / 后端服务URL列表
+  "http://localhost:9000",
+]
+rewrite_from = "/v1"                        # Path prefix to rewrite from / 要重写的路径前缀
+rewrite_to = "/v4"                          # Path prefix to rewrite to / 重写到的路径前缀
+                                          # Example: /api/v1/users -> http://localhost:9000/v4/users
+                                          # 示例：/api/v1/users -> http://localhost:9000/v4/users
+cache_ttl = 300                             # Cache TTL in seconds (0 = no cache) / 缓存有效期（秒，0表示不缓存）
+cache_enable = true                         # Enable cache for this route / 为此路由启用缓存
