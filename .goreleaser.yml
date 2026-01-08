@@ -126,67 +126,33 @@ release:
     owner: nerdneilsfield
     name: simple_api_gateway
 
-dockers:
-- image_templates:
-  - 'nerdneils/{{.ProjectName}}:{{ .Tag }}-amd64'
-  - 'ghcr.io/nerdneilsfield/{{.ProjectName}}:{{ .Tag }}-amd64'
-  dockerfile: Dockerfile.goreleaser
-  use: buildx
-  build_flag_templates:
-  - "--pull"
-  - "--label=io.artifacthub.package.readme-url=https://raw.githubusercontent.com/nerdneilsfield/simple_api_gateway/master/README.md"
-  - "--label=io.artifacthub.package.maintainers=[{\"name\":\"dengqqi\",\"email\":\"dengqqi935@gmail.com\"}]"
-  - "--label=io.artifacthub.package.license=BSD-3-Clause"
-  - "--label=org.opencontainers.image.description=A simple api gateway"
-  - "--label=org.opencontainers.image.created={{.Date}}"
-  - "--label=org.opencontainers.image.name={{.ProjectName}}"
-  - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-  - "--label=org.opencontainers.image.version={{.Version}}"
-  - "--label=org.opencontainers.image.source={{.GitURL}}"
-  - "--platform=linux/amd64"
-  extra_files:
-    - example_config.toml
-    - .qoder/repowiki/zh
-- image_templates:
-  - 'nerdneils/{{.ProjectName}}:{{ .Tag }}-arm64'
-  - 'ghcr.io/nerdneilsfield/{{.ProjectName}}:{{ .Tag }}-arm64'
-  dockerfile:  Dockerfile.goreleaser
-  use: buildx
-  build_flag_templates:
-  - "--pull"
-  - "--label=io.artifacthub.package.readme-url=https://raw.githubusercontent.com/nerdneilsfield/simple_api_gateway/master/README.md"
-  # - "--label=io.artifacthub.package.logo-url=https://raw.githubusercontent.com/nerdneilsfield/simple_api_gateway/master/www/static/images/logo.png"
-  - "--label=io.artifacthub.package.maintainers=[{\"name\":\"dengqqi\",\"email\":\"dengqqi935@gmail.com\"}]"
-  - "--label=io.artifacthub.package.license=BSD-3-Clause"
-  - "--label=org.opencontainers.image.description=A simple api gateway"
-  - "--label=org.opencontainers.image.created={{.Date}}"
-  - "--label=org.opencontainers.image.name={{.ProjectName}}"
-  - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-  - "--label=org.opencontainers.image.version={{.Version}}"
-  - "--label=org.opencontainers.image.source={{.GitURL}}"
-  - "--platform=linux/arm64"
-  goarch: arm64
-  extra_files:
-    - example_config.toml
-    - .qoder/repowiki/zh
-
-docker_manifests:
-- name_template: 'nerdneils/{{.ProjectName}}:{{ .Tag }}'
-  image_templates:
-  - 'nerdneils/{{.ProjectName}}:{{ .Tag }}-amd64'
-  - 'nerdneils/{{.ProjectName}}:{{ .Tag }}-arm64'
-- name_template: 'ghcr.io/nerdneilsfield/{{.ProjectName}}:{{ .Tag }}'
-  image_templates:
-  - 'ghcr.io/nerdneilsfield/{{.ProjectName}}:{{ .Tag }}-amd64'
-  - 'ghcr.io/nerdneilsfield/{{.ProjectName}}:{{ .Tag }}-arm64'
-- name_template: 'nerdneils/{{.ProjectName}}:latest'
-  image_templates:
-  - 'nerdneils/{{.ProjectName}}:{{ .Tag }}-amd64'
-  - 'nerdneils/{{.ProjectName}}:{{ .Tag }}-arm64'
-- name_template: 'ghcr.io/nerdneilsfield/{{.ProjectName}}:latest'
-  image_templates:
-  - 'ghcr.io/nerdneilsfield/{{.ProjectName}}:{{ .Tag }}-amd64'
-  - 'ghcr.io/nerdneilsfield/{{.ProjectName}}:{{ .Tag }}-arm64'
+dockers_v2:
+  - id: simple-api-gateway
+    dockerfile: Dockerfile.goreleaser
+    ids:
+      - simple_api_gateway
+    images:
+      - nerdneils/simple_api_gateway
+      - ghcr.io/nerdneilsfield/simple_api_gateway
+    tags:
+      - "{{ .Tag }}"
+      - "{{ if not .IsNightly }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    extra_files:
+      - example_config.toml
+      - .qoder/repowiki/zh
+    labels:
+      "io.artifacthub.package.readme-url": "https://raw.githubusercontent.com/nerdneilsfield/simple_api_gateway/master/README.md"
+      "io.artifacthub.package.maintainers": "[{\"name\":\"dengqqi\",\"email\":\"dengqqi935@gmail.com\"}]"
+      "io.artifacthub.package.license": "BSD-3-Clause"
+      "org.opencontainers.image.description": "A simple api gateway"
+      "org.opencontainers.image.created": "{{ .Date }}"
+      "org.opencontainers.image.name": "{{ .ProjectName }}"
+      "org.opencontainers.image.revision": "{{ .FullCommit }}"
+      "org.opencontainers.image.version": "{{ .Version }}"
+      "org.opencontainers.image.source": "{{ .GitURL }}"
 
 checksum:
   name_template: "checksums.txt"
