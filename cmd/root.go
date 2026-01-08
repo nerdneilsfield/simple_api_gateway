@@ -34,7 +34,7 @@ func newRootCmd(version string, buildTime string, gitCommit string) *cobra.Comma
 
 	cmd.AddCommand(newVersionCmd(version, buildTime, gitCommit))
 	cmd.AddCommand(newCheckCmd())
-	cmd.AddCommand(newServeCmd())
+	cmd.AddCommand(newServeCmd(gitCommit))
 	cmd.AddCommand(newGenCmd())
 	return cmd
 }

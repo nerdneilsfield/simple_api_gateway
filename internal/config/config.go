@@ -188,6 +188,12 @@ func validateRoutePath(route Route, existingPaths map[string]bool) error {
 		return fmt.Errorf("route path must start with /")
 	}
 
+	normalized := strings.TrimRight(route.Path, "/")
+	if normalized == "/wiki" {
+		logger.Error("route path is reserved for wiki", zap.String("path", route.Path))
+		return fmt.Errorf("route path is reserved for wiki")
+	}
+
 	if existingPaths[route.Path] {
 		logger.Error("route path is duplicated", zap.String("path", route.Path))
 		return fmt.Errorf("route path is duplicated")

@@ -7,7 +7,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func newServeCmd() *cobra.Command {
+func newServeCmd(gitCommit string) *cobra.Command {
 	return &cobra.Command{
 		Use:          "serve",
 		Short:        "serve the api gateway with the given config",
@@ -22,7 +22,7 @@ func newServeCmd() *cobra.Command {
 			if err := config.ValidateConfig(config_); err != nil {
 				return err
 			}
-			router.Run(config_)
+			router.Run(config_, gitCommit)
 			return nil
 		},
 	}

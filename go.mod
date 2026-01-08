@@ -9,6 +9,7 @@ require (
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/gofiber/fiber/v2 v2.52.6
 	github.com/golangci/golangci-lint v1.61.0
+	github.com/nerdneilsfield/go-embed-qorder-wiki v0.1.0
 	github.com/nerdneilsfield/shlogin v0.0.0-20241021135044-691c056cec51
 	github.com/spf13/cobra v1.8.1
 	go.uber.org/zap v1.27.0
@@ -182,6 +183,7 @@ require (
 	github.com/yagipy/maintidx v1.0.0 // indirect
 	github.com/yeya24/promlinter v0.3.0 // indirect
 	github.com/ykadowak/zerologlint v0.1.5 // indirect
+	github.com/yuin/goldmark v1.7.1 // indirect
 	gitlab.com/bosi/decorder v0.4.2 // indirect
 	go-simpler.org/musttag v0.12.2 // indirect
 	go-simpler.org/sloglint v0.7.2 // indirect

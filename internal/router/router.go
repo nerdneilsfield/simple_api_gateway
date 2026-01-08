@@ -15,6 +15,7 @@ import (
 	"github.com/nerdneilsfield/simple_api_gateway/internal/cache"
 	"github.com/nerdneilsfield/simple_api_gateway/internal/config"
 	"github.com/nerdneilsfield/simple_api_gateway/internal/loadbalancer"
+	"github.com/nerdneilsfield/simple_api_gateway/internal/wiki"
 	"go.uber.org/zap"
 )
 
@@ -469,8 +470,29 @@ func tryCacheResponse(c *fiber.Ctx, route config.Route, requestPath, requestMeth
 
 // Run starts the API gateway server
 // 启动API网关服务器
-func Run(config_ *config.Config) {
+func Run(config_ *config.Config, gitCommit string) {
 	app := fiber.New()
+
+	app.Get("/", func(c *fiber.Ctx) error {
+		return c.SendString("hello world")
+	})
+
+	wikiHandler, wikiMount, wikiErr := wiki.NewHandler("", gitCommit, nil)
+	if wikiErr != nil {
+		logger.Warn("Wiki disabled", zap.Error(wikiErr))
+	} else {
+		app.All(wikiMount, func(c *fiber.Ctx) error {
+			if c.Path() != wikiMount {
+				return wikiHandler(c)
+			}
+			target := wikiMount + "/"
+			if query := c.Context().QueryArgs().String(); query != "" {
+				target = target + "?" + query
+			}
+			return c.Redirect(target, fiber.StatusMovedPermanently)
+		})
+		app.All(wikiMount+"/*", wikiHandler)
+	}
 
 	// Initialize cache manager
 	// 初始化缓存管理器
