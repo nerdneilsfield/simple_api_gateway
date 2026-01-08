@@ -80,6 +80,8 @@ archives:
     id: simple_api_gateway_archives
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     formats: ["tar.gz"]
+    files:
+      - .qoder/repowiki/zh/**
     format_overrides:
       - goos: windows
         formats: ["zip"]
@@ -144,6 +146,7 @@ dockers:
   - "--platform=linux/amd64"
   extra_files:
     - example_config.toml
+    - .qoder/repowiki/zh/**
 - image_templates:
   - 'nerdneils/{{.ProjectName}}:{{ .Tag }}-arm64'
   - 'ghcr.io/nerdneilsfield/{{.ProjectName}}:{{ .Tag }}-arm64'
@@ -165,6 +168,7 @@ dockers:
   goarch: arm64
   extra_files:
     - example_config.toml
+    - .qoder/repowiki/zh/**
 
 docker_manifests:
 - name_template: 'nerdneils/{{.ProjectName}}:{{ .Tag }}'

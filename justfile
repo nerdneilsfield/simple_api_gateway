@@ -17,9 +17,9 @@ build:
 build:
     go build -ldflags "-X main.version=$(git describe --abbrev=0 --tags)" -o {{projectname}}
 
-[unix]
-build:
-    go build -ldflags "-X main.version=$(git describe --abbrev=0 --tags)" -o {{projectname}}
+# [unix]
+# build:
+#     go build -ldflags "-X main.version=$(git describe --abbrev=0 --tags)" -o {{projectname}}
 
 # 安装 Golang 二进制文件
 install:

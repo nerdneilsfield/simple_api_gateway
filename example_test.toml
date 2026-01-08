@@ -1,4 +1,4 @@
-port = 8080                                  # Port to listen on / 监听端口
+port = 8082                                  # Port to listen on / 监听端口
 host = "0.0.0.0"                            # Host to bind to / 绑定主机
 log_file_path = "./simple-api-gateway.log"  # Log file path / 日志文件路径
 
@@ -29,3 +29,16 @@ cache_paths = [
 
 [route.custom_headers]                      # Custom headers to add to requests / 添加到请求中的自定义头部
 Authorization = "Bearer ghp_your_personal_access_token"
+
+
+[[route]]
+path = "/zhipu"                               # Route path / 路由路径
+backends = [                                # Backend service URLs / 后端服务URL列表
+  "https://open.bigmodel.cn/api/coding/paas/",
+]
+rewrite_from = "/v1"                        # Path prefix to rewrite from / 要重写的路径前缀
+rewrite_to = "/v4"                          # Path prefix to rewrite to / 重写到的路径前缀
+                                          # Example: /api/v1/users -> http://localhost:9000/v4/users
+                                          # 示例：/api/v1/users -> http://localhost:9000/v4/users
+cache_ttl = 300                             # Cache TTL in seconds (0 = no cache) / 缓存有效期（秒，0表示不缓存）
+cache_enable = true                         # Enable cache for this route / 为此路由启用缓存
