@@ -12,6 +12,7 @@ require (
 	github.com/nerdneilsfield/go-embed-qorder-wiki v0.1.0
 	github.com/nerdneilsfield/shlogin v0.0.0-20241021135044-691c056cec51
 	github.com/spf13/cobra v1.8.1
+	github.com/valyala/fasthttp v1.51.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/tools v0.26.0
 	honnef.co/go/tools v0.5.1
@@ -177,7 +178,6 @@ require (
 	github.com/ultraware/whitespace v0.1.1 // indirect
 	github.com/uudashr/gocognit v1.1.3 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	github.com/valyala/fasthttp v1.51.0 // indirect
 	github.com/valyala/tcplisten v1.0.0 // indirect
 	github.com/xen0n/gosmopolitan v1.2.2 // indirect
 	github.com/yagipy/maintidx v1.0.0 // indirect
