@@ -302,6 +302,10 @@ func CreateNewHandler(route config.Route, globalCacheEnabled bool) fiber.Handler
 	lb := getLoadBalancer(route)
 
 	return func(c *fiber.Ctx) error {
+		if isWebSocketUpgrade(c) {
+			return handleWebSocket(c, lb, route)
+		}
+
 		requestStartTime := time.Now()
 		requestPath := c.Path()
 		requestMethod := c.Method()
@@ -544,7 +548,15 @@ func Run(config_ *config.Config, gitCommit string) {
 
 	addrString := config_.Host + ":" + fmt.Sprint(config_.Port)
 	logger.Info("Starting server", zap.String("address", addrString))
-	if err := app.Listen(addrString); err != nil {
+	var err error
+	if config_.TLSCertFile != "" {
+		// 客户端 wss:// 需要在网关终止 TLS
+		// Terminate TLS at the gateway so clients can use wss:// / https://
+		err = app.ListenTLS(addrString, config_.TLSCertFile, config_.TLSKeyFile)
+	} else {
+		err = app.Listen(addrString)
+	}
+	if err != nil {
 		logger.Fatal("failed to run server", zap.Error(err))
 	}
 }

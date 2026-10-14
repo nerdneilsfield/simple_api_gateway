@@ -30,6 +30,7 @@ Simple API Gateway is a lightweight API gateway tool for proxying requests to mu
 - Detailed logging / 详细的日志记录
 - Support for debug and release modes / 支持调试和发布模式
 - Request caching with Redis or in-memory / 支持Redis或内存请求缓存
+- WebSocket proxying (ws/wss) as a zero-copy TCP tunnel; set `tls_cert_file`/`tls_key_file` for wss:// at the gateway / WebSocket 代理（ws/wss），配置 `tls_cert_file`/`tls_key_file` 启用网关 wss
 - Built-in RepoWiki docs at `/wiki`
 
 ## Quick Start / 快速开始

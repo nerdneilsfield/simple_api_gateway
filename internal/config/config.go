@@ -23,6 +23,8 @@ type Config struct {
 	Port        int     `toml:"port"`
 	Host        string  `toml:"host"`
 	LogFilePath string  `toml:"log_file_path"`
+	TLSCertFile string  `toml:"tls_cert_file"` // TLS certificate (enables https/wss) / TLS证书（启用 https/wss）
+	TLSKeyFile  string  `toml:"tls_key_file"`  // TLS private key / TLS私钥
 	Cache       Cache   `toml:"cache"`
 	Routes      []Route `toml:"route"`
 }
@@ -101,6 +103,10 @@ func validateBasicConfig(config *Config) error {
 	if config.Host == "" {
 		logger.Error("Host is not valid", zap.String("host", config.Host))
 		return fmt.Errorf("host is not valid")
+	}
+
+	if (config.TLSCertFile == "") != (config.TLSKeyFile == "") {
+		return fmt.Errorf("tls_cert_file and tls_key_file must be set together")
 	}
 
 	return nil
