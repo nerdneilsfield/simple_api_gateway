@@ -222,6 +222,8 @@ Configuration file uses TOML format. Example configuration:
 port = 8080                                  # Port to listen on / 监听端口
 host = "0.0.0.0"                            # Host to bind to / 绑定主机
 log_file_path = "/var/log/simple-api-gateway.log"  # Log file path / 日志文件路径
+# tls_cert_file = "/path/cert.pem"          # Optional: serve https/wss / 可选：启用 https/wss
+# tls_key_file = "/path/key.pem"
 
 [cache]
 enabled = true                              # Enable cache / 启用缓存
@@ -360,6 +362,33 @@ cache_paths = [                             # Relative paths that can be cached 
 Cache keys are generated from the request method, path, query parameters, and request body, ensuring that identical requests hit the same cache.
 
 *缓存键由请求方法、路径、查询参数和请求体组合生成，确保相同的请求会命中相同的缓存。*
+
+## WebSocket Proxy / WebSocket 代理
+
+Any route proxies WebSocket handshakes automatically, no extra route option is needed. After the backend answers `101`, the gateway relays bytes as a raw TCP tunnel without parsing frames (plain TCP to TCP uses `splice`).
+
+*任意路由都会自动代理 WebSocket 握手，无需额外路由配置。后端返回 `101` 后，网关以原始 TCP 隧道转发字节，不解析帧（明文 TCP 到 TCP 走 `splice`）。*
+
+```toml
+# wss:// from clients: terminate TLS at the gateway / 客户端使用 wss://：在网关终止 TLS
+tls_cert_file = "/path/cert.pem"
+tls_key_file = "/path/key.pem"
+
+[[route]]
+path = "/ws"
+backends = ["http://localhost:9100", "https://ws.example.com"]  # http -> ws, https -> wss
+```
+
+- `ws://gateway/ws/chat` is forwarded to `<backend>/chat`; `rewrite_from`/`rewrite_to`, `ua_client`, `custom_headers` and load balancing apply
+  *`ws://gateway/ws/chat` 转发到 `<backend>/chat`；`rewrite_from`/`rewrite_to`、`ua_client`、`custom_headers` 与负载均衡均生效*
+- `https://` backends are dialed over TLS with certificate verification
+  *`https://` 后端使用 TLS 连接并校验证书*
+- `Host` is set to the backend; hop-by-hop headers are dropped; `custom_headers` cannot override `Connection`, `Upgrade`, `Content-Length` or `Transfer-Encoding`
+  *`Host` 改为后端地址；逐跳头会被丢弃；`custom_headers` 不能覆盖 `Connection`、`Upgrade`、`Content-Length`、`Transfer-Encoding`*
+- If the backend does not return `101`, its response is relayed as plain HTTP and no tunnel is opened
+  *后端未返回 `101` 时，其响应按普通 HTTP 回传，不建立隧道*
+- Handshake requests must be `GET` without a body; the handshake times out after 10s; caching is bypassed; there is no idle timeout on established tunnels
+  *握手须为无请求体的 `GET`，握手超时 10 秒；不走缓存；已建立的隧道没有空闲超时*
 
 ## Tech Stack / 技术栈
 

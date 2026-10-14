@@ -1,7 +1,7 @@
 port = 8080
 host = "0.0.0.0"
 log_file_path = "/var/log/simple-api-gateway.log"
-# tls_cert_file = "/path/cert.pem"       # Enable https/wss at the gateway / 启用 https/wss
+# tls_cert_file = "/path/cert.pem"       # Terminate TLS at the gateway (https/wss); set with tls_key_file / 在网关终止 TLS（https/wss），需与 tls_key_file 同时设置
 # tls_key_file = "/path/key.pem"
 
 [cache]
@@ -56,3 +56,10 @@ rewrite_to = "/v4"                          # Path prefix to rewrite to / 重写
                                           # 示例：/api/v1/users -> http://localhost:9000/v4/users
 cache_ttl = 300                             # Cache TTL in seconds (0 = no cache) / 缓存有效期（秒，0表示不缓存）
 cache_enable = true                         # Enable cache for this route / 为此路由启用缓存
+
+[[route]]
+path = "/ws"                                # WebSocket route, no extra option needed / WebSocket 路由，无需额外配置
+backends = [                                # ws:// -> use http://, wss:// -> use https:// / ws 用 http://，wss 用 https://
+  "http://localhost:9100",
+  "https://ws.example.com"
+]
