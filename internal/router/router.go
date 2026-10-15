@@ -260,6 +260,12 @@ func buildTargetURL(c *fiber.Ctx, backendURL string, route config.Route) (string
 	// Build target URL
 	// 构建目标URL
 	trimmedPath := c.Path()[len(route.Path):]
+	if route.PreservePath {
+		// 透传完整路径；去掉后端URL尾部斜杠避免出现 //
+		// Keep the full client path; drop the backend trailing slash to avoid //
+		trimmedPath = c.Path()
+		targetURL.Path = strings.TrimRight(targetURL.Path, "/")
+	}
 
 	// Normalize trimmedPath so it always joins cleanly with the backend URL.
 	// 规范化trimmedPath，确保能正确拼接到后端URL。

@@ -63,3 +63,12 @@ backends = [                                # ws:// -> use http://, wss:// -> us
   "http://localhost:9100",
   "https://ws.example.com"
 ]
+
+# Path passthrough (e.g. Paseo Relay) / 路径透传（如 Paseo Relay）
+# preserve_path = true keeps the full client path; backend URL must have no path; cannot combine with rewrite_*
+# preserve_path = true 保留客户端完整路径；后端 URL 不能带路径；不可与 rewrite_* 同用
+# [[route]]
+# path = "/ws"
+# backends = ["http://localhost:4000"]
+# preserve_path = true
+# cache_enable = false

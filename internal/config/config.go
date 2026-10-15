@@ -47,6 +47,7 @@ type Route struct {
 	CustomHeaders map[string]string `toml:"custom_headers"` // Custom headers to add to requests / 添加到请求中的自定义头部
 	RewriteFrom   string            `toml:"rewrite_from"`   // Path prefix to rewrite from / 要重写的路径前缀
 	RewriteTo     string            `toml:"rewrite_to"`     // Path prefix to rewrite to / 重写到的路径前缀
+	PreservePath  bool              `toml:"preserve_path"`  // Forward the full client path without stripping route path / 保留客户端完整路径，不裁剪路由前缀
 }
 
 // ParseConfig parses the config file at the given path
@@ -280,6 +281,17 @@ func validateRewriteRule(route Route) error {
 				zap.String("path", route.Path),
 				zap.String("rewrite_to", route.RewriteTo))
 			return fmt.Errorf("rewrite_to must start with /")
+		}
+	}
+
+	if route.PreservePath {
+		if hasRewriteFrom {
+			return fmt.Errorf("preserve_path cannot be combined with rewrite_from/rewrite_to")
+		}
+		for _, b := range route.Backends {
+			if u, err := url.Parse(b); err != nil || (u.Path != "" && u.Path != "/") {
+				return fmt.Errorf("preserve_path requires backend URLs without a path: %s", b)
+			}
 		}
 	}
 

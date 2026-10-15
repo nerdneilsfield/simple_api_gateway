@@ -381,6 +381,16 @@ backends = ["http://localhost:9100", "https://ws.example.com"]  # http -> ws, ht
 
 - `ws://gateway/ws/chat` is forwarded to `<backend>/chat`; `rewrite_from`/`rewrite_to`, `ua_client`, `custom_headers` and load balancing apply
   *`ws://gateway/ws/chat` 转发到 `<backend>/chat`；`rewrite_from`/`rewrite_to`、`ua_client`、`custom_headers` 与负载均衡均生效*
+- `preserve_path = true` (default `false`) forwards the full client path and query without stripping `path`; backend URLs must not carry a path and it cannot be combined with `rewrite_from`/`rewrite_to`. Works for HTTP and WebSocket. Example for Paseo Relay (`/ws?serverId=...&role=...`):
+  *`preserve_path = true`（默认 `false`）保留完整客户端路径与查询参数，不裁剪 `path`；后端 URL 不能带路径，且不可与 `rewrite_from`/`rewrite_to` 同用。HTTP 与 WebSocket 均适用。*
+
+  ```toml
+  [[route]]
+  path = "/ws"
+  backends = ["http://localhost:4000"]
+  preserve_path = true
+  cache_enable = false
+  ```
 - `https://` backends are dialed over TLS with certificate verification
   *`https://` 后端使用 TLS 连接并校验证书*
 - `Host` is set to the backend; hop-by-hop headers are dropped; `custom_headers` cannot override `Connection`, `Upgrade`, `Content-Length` or `Transfer-Encoding`
