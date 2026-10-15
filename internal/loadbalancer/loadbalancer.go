@@ -90,15 +90,12 @@ func (lb *RoundRobinLoadBalancer) NextBackend() string {
 	if len(healthyBackends) == 0 {
 		// 如果没有健康的后端，重置所有后端状态并返回第一个
 		// If no healthy backends, reset all backends and return the first one
-		lb.resetBackends()
-
-		lb.mutex.RLock()
+		lb.mutex.Lock()
+		defer lb.mutex.Unlock()
+		lb.resetBackendsLocked()
 		if len(lb.backends) > 0 {
-			firstBackend := lb.backends[0].URL
-			lb.mutex.RUnlock()
-			return firstBackend
+			return lb.backends[0].URL
 		}
-		lb.mutex.RUnlock()
 		return ""
 	}
 
@@ -177,7 +174,7 @@ func (lb *RoundRobinLoadBalancer) ReportFailure(backend string) {
 	}
 
 	if allUnhealthy {
-		lb.resetBackends()
+		lb.resetBackendsLocked()
 	}
 }
 
@@ -230,12 +227,9 @@ func (lb *RoundRobinLoadBalancer) GetHealthyBackends() []string {
 	return result
 }
 
-// resetBackends 重置所有后端状态
-// resetBackends resets all backend statuses
-func (lb *RoundRobinLoadBalancer) resetBackends() {
-	lb.mutex.Lock()
-	defer lb.mutex.Unlock()
-
+// resetBackendsLocked 重置所有后端状态，调用方必须已持有 lb.mutex 写锁
+// resetBackendsLocked resets all backend statuses; caller must hold lb.mutex (write)
+func (lb *RoundRobinLoadBalancer) resetBackendsLocked() {
 	logger.Warn("No healthy backends available, resetting all backends")
 
 	for i := range lb.backends {
