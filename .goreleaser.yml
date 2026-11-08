@@ -184,3 +184,33 @@ changelog:
       order: 400
     - title: Other work
       order: 9999
+
+# Publish to the nerdneilsfield/homebrew-apps tap and Scoop bucket.
+homebrew_casks:
+  - name: simple_api_gateway
+    homepage: https://github.com/nerdneilsfield/simple_api_gateway
+    description: A very simple API gateway for Go
+    binaries:
+      - simple_api_gateway
+    directory: Casks
+    repository:
+      owner: nerdneilsfield
+      name: homebrew-apps
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    hooks:
+      post:
+        install_steps: |
+          on_macos do
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/simple_api_gateway"]
+          end
+
+scoops:
+  - name: simple_api_gateway
+    homepage: https://github.com/nerdneilsfield/simple_api_gateway
+    description: A very simple API gateway for Go
+    license: BSD-3-Clause
+    directory: bucket
+    repository:
+      owner: nerdneilsfield
+      name: homebrew-apps
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"

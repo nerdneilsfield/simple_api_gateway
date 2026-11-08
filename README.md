@@ -61,6 +61,19 @@ That's it! Your API Gateway is now running on port 8080 (default).
 
 *就是这样！您的 API 网关现在运行在 8080 端口（默认）。*
 
+## Homebrew / Scoop 安装
+
+```bash
+# macOS / Linux
+brew install --cask nerdneilsfield/apps/simple_api_gateway
+```
+
+```powershell
+# Windows
+scoop bucket add nerdneilsfield https://github.com/nerdneilsfield/homebrew-apps
+scoop install nerdneilsfield/simple_api_gateway
+```
+
 ## Installation / 安装
 
 Ensure you have Go 1.16 or higher installed, then run:
